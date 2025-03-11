@@ -91,7 +91,6 @@ namespace gem5
 {
 
 /* A namespace for all of the Statistics */
-GEM5_DEPRECATED_NAMESPACE(Stats, statistics);
 namespace statistics
 {
 
@@ -1005,7 +1004,7 @@ class VectorBase : public DataWrapVec<Derived, VectorInfoProxy>
     zero() const
     {
         for (off_type i = 0; i < size(); ++i)
-            if (data(i)->zero())
+            if (!data(i)->zero())
                 return false;
         return true;
     }

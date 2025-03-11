@@ -28,60 +28,54 @@
 This file contains functions to extract gem5 runtime information.
 """
 
+from typing import Set
+
 from m5.defines import buildEnv
+from m5.util import warn
 
-from .isas import ISA
-from .coherence_protocol import CoherenceProtocol
+from .coherence_protocol import (
+    CoherenceProtocol,
+    get_protocol_from_str,
+    get_protocols_str_set,
+)
+from .isas import (
+    ISA,
+    get_isa_from_str,
+    get_isas_str_set,
+)
 
 
-def get_runtime_isa() -> ISA:
-    """Gets the target ISA.
-    This can be inferred at runtime.
-
-    :returns: The target ISA.
+def get_supported_isas() -> Set[ISA]:
     """
-    isa_map = {
-        "sparc": ISA.SPARC,
-        "mips": ISA.MIPS,
-        "null": ISA.NULL,
-        "arm": ISA.ARM,
-        "x86": ISA.X86,
-        "power": ISA.POWER,
-        "riscv": ISA.RISCV,
-    }
-
-    isa_str = str(buildEnv["TARGET_ISA"]).lower()
-    if isa_str not in isa_map.keys():
-        raise NotImplementedError(
-            "ISA '" + buildEnv["TARGET_ISA"] + "' not recognized."
-        )
-
-    return isa_map[isa_str]
-
-
-def get_runtime_coherence_protocol() -> CoherenceProtocol:
-    """Gets the cache coherence protocol.
-    This can be inferred at runtime.
-
-    :returns: The cache coherence protocol.
+    Returns the set of all the ISAs compiled into the current binary.
     """
-    protocol_map = {
-        "mi_example": CoherenceProtocol.MI_EXAMPLE,
-        "moesi_hammer": CoherenceProtocol.ARM_MOESI_HAMMER,
-        "garnet_standalone": CoherenceProtocol.GARNET_STANDALONE,
-        "moesi_cmp_token": CoherenceProtocol.MOESI_CMP_TOKEN,
-        "mesi_two_level": CoherenceProtocol.MESI_TWO_LEVEL,
-        "moesi_amd_base": CoherenceProtocol.MOESI_AMD_BASE,
-        "mesi_three_level_htm": CoherenceProtocol.MESI_THREE_LEVEL_HTM,
-        "mesi_three_level": CoherenceProtocol.MESI_THREE_LEVEL,
-        "gpu_viper": CoherenceProtocol.GPU_VIPER,
-        "chi": CoherenceProtocol.CHI,
-    }
+    supported_isas = set()
 
-    protocol_str = str(buildEnv["PROTOCOL"]).lower()
-    if protocol_str not in protocol_map.keys():
-        raise NotImplementedError(
-            "Protocol '" + buildEnv["PROTOCOL"] + "' not recognized."
-        )
+    if not buildEnv["BUILD_ISA"]:
+        return {ISA.NULL}
 
-    return protocol_map[protocol_str]
+    if "TARGET_ISA" in buildEnv.keys():
+        supported_isas.add(get_isa_from_str(buildEnv["TARGET_ISA"]))
+
+    for key in get_isas_str_set():
+        if buildEnv.get(f"USE_{key.upper()}_ISA", False):
+            supported_isas.add(get_isa_from_str(key))
+
+    return supported_isas
+
+
+def get_supported_protocols() -> Set[CoherenceProtocol]:
+    """
+    Returns the set of all the coherence protocols compiled into the current
+    binary.
+    """
+    supported_protocols = set()
+
+    if not buildEnv["RUBY"]:
+        return {CoherenceProtocol.NULL}
+
+    for key in get_protocols_str_set():
+        if buildEnv.get(f"RUBY_PROTOCOL_{key}", False):
+            supported_protocols.add(get_protocol_from_str(key))
+
+    return supported_protocols

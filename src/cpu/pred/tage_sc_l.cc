@@ -1,4 +1,16 @@
 /*
+ * Copyright (c) 2022-2023 The University of Edinburgh
+ * All rights reserved
+ *
+ * The license below extends only to copyright in the software and shall
+ * not be construed as granting a license to any other intellectual
+ * property including but not limited to intellectual property relating
+ * to a hardware implementation of the functionality of the software
+ * licensed hereunder.  You may use the software subject to the license
+ * terms below provided that you ensure that this notice is replicated
+ * unmodified and in its entirety in all distributions of the software,
+ * modified or unmodified, in source code or in binary form.
+ *
  * Copyright (c) 2018 Metempsy Technology Consulting
  * All rights reserved.
  *
@@ -42,7 +54,6 @@
 
 #include "cpu/pred/tage_sc_l.hh"
 
-#include "base/random.hh"
 #include "debug/TageSCL.hh"
 
 namespace gem5
@@ -61,7 +72,7 @@ TAGE_SC_L_LoopPredictor::calcConf(int index) const
 bool
 TAGE_SC_L_LoopPredictor::optionalAgeInc() const
 {
-    return (random_mt.random<int>() & 7) == 0;
+    return (rng->random<int>() & 7) == 0;
 }
 
 TAGE_SC_L::TAGE_SC_L(const TAGE_SC_LParams &p)
@@ -70,9 +81,9 @@ TAGE_SC_L::TAGE_SC_L(const TAGE_SC_LParams &p)
 }
 
 TAGEBase::BranchInfo*
-TAGE_SC_L_TAGE::makeBranchInfo()
+TAGE_SC_L_TAGE::makeBranchInfo(Addr pc, bool cond)
 {
-    return new BranchInfo(*this);
+    return new BranchInfo(*this, pc, cond);
 }
 void
 TAGE_SC_L_TAGE::calculateParameters()
@@ -228,8 +239,9 @@ TAGE_SC_L_TAGE::bindex(Addr pc) const
 
 void
 TAGE_SC_L_TAGE::updatePathAndGlobalHistory(
-    ThreadHistory& tHist, int brtype, bool taken, Addr branch_pc, Addr target)
+    ThreadID tid, int brtype, bool taken, Addr branch_pc, Addr target)
 {
+    ThreadHistory& tHist = threadHistory[tid];
     // TAGE update
     int tmp = ((branch_pc ^ (branch_pc >> instShiftAmt))) ^ taken;
     int path = branch_pc ^ (branch_pc >> instShiftAmt)
@@ -243,28 +255,23 @@ TAGE_SC_L_TAGE::updatePathAndGlobalHistory(
     int maxt = (brtype == 2) ? 3 : 2;
 
     for (int t = 0; t < maxt; t++) {
-        bool dir = (tmp & 1);
-        tmp >>= 1;
         int pathbit = (path & 127);
         path >>= 1;
-        updateGHist(tHist.gHist, dir, tHist.globalHistory, tHist.ptGhist);
         tHist.pathHist = (tHist.pathHist << 1) ^ pathbit;
         if (truncatePathHist) {
             // The 8KB implementation does not do this truncation
             tHist.pathHist = (tHist.pathHist & ((1ULL << pathHistBits) - 1));
         }
-        for (int i = 1; i <= nHistoryTables; i++) {
-            tHist.computeIndices[i].update(tHist.gHist);
-            tHist.computeTags[0][i].update(tHist.gHist);
-            tHist.computeTags[1][i].update(tHist.gHist);
-        }
     }
+
+    updateGHist(tid, tmp, maxt);
 }
 
 void
-TAGE_SC_L_TAGE::updateHistories(
-    ThreadID tid, Addr branch_pc, bool taken, TAGEBase::BranchInfo* b,
-    bool speculative, const StaticInstPtr &inst, Addr target)
+TAGE_SC_L_TAGE::updateHistories(ThreadID tid, Addr branch_pc,
+                                bool speculative, bool taken,
+                                Addr target, const StaticInstPtr &inst,
+                                TAGEBase::BranchInfo* bi)
 {
     if (speculative != speculativeHistUpdate) {
         return;
@@ -278,7 +285,7 @@ TAGE_SC_L_TAGE::updateHistories(
     if (! inst->isUncondCtrl()) {
         ++brtype;
     }
-    updatePathAndGlobalHistory(tHist, brtype, taken, branch_pc, target);
+    updatePathAndGlobalHistory(tid, brtype, taken, branch_pc, target);
 
     DPRINTF(TageSCL, "Updating global histories with branch:%lx; taken?:%d, "
             "path Hist: %x; pointer:%d\n", branch_pc, taken, tHist.pathHist,
@@ -286,8 +293,8 @@ TAGE_SC_L_TAGE::updateHistories(
 }
 
 void
-TAGE_SC_L_TAGE::squash(ThreadID tid, bool taken, TAGEBase::BranchInfo *bi,
-                       Addr target)
+TAGE_SC_L_TAGE::squash(ThreadID tid, bool taken, Addr target,
+                       const StaticInstPtr &inst, TAGEBase::BranchInfo *bi)
 {
     fatal("Speculation is not implemented");
 }
@@ -296,7 +303,7 @@ void
 TAGE_SC_L_TAGE::adjustAlloc(bool & alloc, bool taken, bool pred_taken)
 {
     // Do not allocate too often if the prediction is ok
-    if ((taken == pred_taken) && ((random_mt.random<int>() & 31) != 0)) {
+    if ((taken == pred_taken) && ((rng->random<int>() & 31) != 0)) {
         alloc = false;
     }
 }
@@ -305,11 +312,11 @@ int
 TAGE_SC_L_TAGE::calcDep(TAGEBase::BranchInfo* bi)
 {
     int a = 1;
-    if ((random_mt.random<int>() & 127) < 32) {
+    if ((rng->random<int>() & 127) < 32) {
         a = 2;
     }
     return ((((bi->hitBank - 1 + 2 * a) & 0xffe)) ^
-            (random_mt.random<int>() & 1));
+            (rng->random<int>() & 1));
 }
 
 void
@@ -362,16 +369,17 @@ TAGE_SC_L_TAGE::extraAltCalc(TAGEBase::BranchInfo* bi)
 }
 
 bool
-TAGE_SC_L::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
+TAGE_SC_L::predict(ThreadID tid, Addr pc, bool cond_branch, void* &b)
 {
     TageSCLBranchInfo *bi = new TageSCLBranchInfo(*tage,
                                                   *statisticalCorrector,
-                                                  *loopPredictor);
+                                                  *loopPredictor,
+                                                  pc, cond_branch);
     b = (void*)(bi);
 
-    bool pred_taken = tage->tagePredict(tid, branch_pc, cond_branch,
+    bool pred_taken = tage->tagePredict(tid, pc, cond_branch,
                                         bi->tageBranchInfo);
-    pred_taken = loopPredictor->loopPredict(tid, branch_pc, cond_branch,
+    pred_taken = loopPredictor->loopPredict(tid, pc, cond_branch,
                                             bi->lpBranchInfo, pred_taken,
                                             instShiftAmt);
 
@@ -394,7 +402,7 @@ TAGE_SC_L::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
     bool bias = (bi->tageBranchInfo->longestMatchPred !=
                  bi->tageBranchInfo->altTaken);
 
-    pred_taken = statisticalCorrector->scPredict(tid, branch_pc, cond_branch,
+    pred_taken = statisticalCorrector->scPredict(tid, pc, cond_branch,
             bi->scBranchInfo, pred_taken, bias, use_tage_ctr, tage_ctr,
             tage->getTageCtrBits(), bi->tageBranchInfo->hitBank,
             bi->tageBranchInfo->altBank, tage->getPathHist(tid));
@@ -410,8 +418,8 @@ TAGE_SC_L::predict(ThreadID tid, Addr branch_pc, bool cond_branch, void* &b)
 }
 
 void
-TAGE_SC_L::update(ThreadID tid, Addr branch_pc, bool taken, void *bp_history,
-        bool squashed, const StaticInstPtr & inst, Addr corrTarget)
+TAGE_SC_L::update(ThreadID tid, Addr pc, bool taken, void *&bp_history,
+                  bool squashed, const StaticInstPtr & inst, Addr target)
 {
     assert(bp_history);
 
@@ -423,7 +431,7 @@ TAGE_SC_L::update(ThreadID tid, Addr branch_pc, bool taken, void *bp_history,
         if (tage->isSpeculativeUpdateEnabled()) {
             // This restores the global history, then update it
             // and recomputes the folded histories.
-            tage->squash(tid, taken, tage_bi, corrTarget);
+            tage->squash(tid, taken, target, inst, tage_bi);
             if (bi->tageBranchInfo->condBranch) {
                 loopPredictor->squashLoop(bi->lpBranchInfo);
             }
@@ -431,10 +439,10 @@ TAGE_SC_L::update(ThreadID tid, Addr branch_pc, bool taken, void *bp_history,
         return;
     }
 
-    int nrand = random_mt.random<int>() & 3;
+    int nrand = rng->random<int>() & 3;
     if (tage_bi->condBranch) {
         DPRINTF(TageSCL, "Updating tables for branch:%lx; taken?:%d\n",
-                branch_pc, taken);
+                pc, taken);
         tage->updateStats(taken, bi->tageBranchInfo);
 
         loopPredictor->updateStats(taken, bi->lpBranchInfo);
@@ -443,26 +451,27 @@ TAGE_SC_L::update(ThreadID tid, Addr branch_pc, bool taken, void *bp_history,
 
         bool bias = (bi->tageBranchInfo->longestMatchPred !=
                      bi->tageBranchInfo->altTaken);
-        statisticalCorrector->condBranchUpdate(tid, branch_pc, taken,
-            bi->scBranchInfo, corrTarget, bias, bi->tageBranchInfo->hitBank,
+        statisticalCorrector->condBranchUpdate(tid, pc, taken,
+            bi->scBranchInfo, target, bias, bi->tageBranchInfo->hitBank,
             bi->tageBranchInfo->altBank, tage->getPathHist(tid));
 
-        loopPredictor->condBranchUpdate(tid, branch_pc, taken,
+        loopPredictor->condBranchUpdate(tid, pc, taken,
                 bi->tageBranchInfo->tagePred, bi->lpBranchInfo, instShiftAmt);
 
-        tage->condBranchUpdate(tid, branch_pc, taken, bi->tageBranchInfo,
-                               nrand, corrTarget, bi->lpBranchInfo->predTaken);
+        tage->condBranchUpdate(tid, pc, taken, bi->tageBranchInfo,
+                               nrand, target, bi->lpBranchInfo->predTaken);
     }
 
     if (!tage->isSpeculativeUpdateEnabled()) {
-        statisticalCorrector->scHistoryUpdate(branch_pc, inst, taken,
-                                              bi->scBranchInfo, corrTarget);
+        statisticalCorrector->scHistoryUpdate(pc, inst, taken,
+                                              bi->scBranchInfo, target);
 
-        tage->updateHistories(tid, branch_pc, taken, bi->tageBranchInfo, false,
-                              inst, corrTarget);
+        tage->updateHistories(tid, pc, false, taken, target,
+                              inst, bi->tageBranchInfo);
     }
 
     delete bi;
+    bp_history = nullptr;
 }
 
 } // namespace branch_prediction

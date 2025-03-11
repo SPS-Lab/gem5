@@ -59,7 +59,7 @@
 #include "proto/packet.pb.h"
 #include "proto/protoio.hh"
 #include "sim/eventq.hh"
-#include "sim/probe/probe.hh"
+#include "sim/probe/probe_listener_object.hh"
 
 namespace gem5
 {
@@ -189,8 +189,6 @@ class ElasticTrace : public ProbeListenerObject
      * free instructions and such cases are handled differently.
      */
     bool firstWin;
-
-    RegIndex zeroReg;
 
     /**
      * @defgroup InstExecInfo Struct for storing information before an

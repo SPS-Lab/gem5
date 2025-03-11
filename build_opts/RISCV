@@ -1,3 +1,5 @@
-TARGET_ISA = 'riscv'
-CPU_MODELS = 'AtomicSimpleCPU,TimingSimpleCPU,MinorCPU,O3CPU'
-PROTOCOL = 'MI_example'
+RUBY=y
+PROTOCOL="MI_example"
+RUBY_PROTOCOL_MI_example=y
+BUILD_ISA=y
+USE_RISCV_ISA=y

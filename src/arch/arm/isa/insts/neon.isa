@@ -1,6 +1,6 @@
 // -*- mode:c++ -*-
 
-// Copyright (c) 2010-2011, 2015, 2019 ARM Limited
+// Copyright (c) 2010-2011, 2015, 2019, 2024 ARM Limited
 // All rights reserved
 //
 // The license below extends only to copyright in the software and shall
@@ -39,8 +39,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUThreeUReg(unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         switch (size) {
           case 0:
@@ -59,8 +59,8 @@ output header {{
     template <class BaseS, class BaseD>
     StaticInstPtr
     decodeNeonSizeSingleDouble(unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         switch (size) {
           case 2:
@@ -75,8 +75,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSThreeUReg(unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         switch (size) {
           case 0:
@@ -95,8 +95,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUSThreeUReg(bool notSigned, unsigned size,
-                          ExtMachInst machInst, IntRegIndex dest,
-                          IntRegIndex op1, IntRegIndex op2)
+                          ExtMachInst machInst, RegIndex dest,
+                          RegIndex op1, RegIndex op2)
     {
         if (notSigned) {
             return decodeNeonUThreeUReg<Base>(size, machInst, dest, op1, op2);
@@ -108,8 +108,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUThreeUSReg(unsigned size,
-                          ExtMachInst machInst, IntRegIndex dest,
-                          IntRegIndex op1, IntRegIndex op2)
+                          ExtMachInst machInst, RegIndex dest,
+                          RegIndex op1, RegIndex op2)
     {
         switch (size) {
           case 0:
@@ -126,8 +126,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSThreeUSReg(unsigned size,
-                          ExtMachInst machInst, IntRegIndex dest,
-                          IntRegIndex op1, IntRegIndex op2)
+                          ExtMachInst machInst, RegIndex dest,
+                          RegIndex op1, RegIndex op2)
     {
         switch (size) {
           case 0:
@@ -144,8 +144,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSThreeHAndWReg(unsigned size, ExtMachInst machInst,
-                             IntRegIndex dest, IntRegIndex op1,
-                             IntRegIndex op2)
+                             RegIndex dest, RegIndex op1,
+                             RegIndex op2)
     {
         switch (size) {
           case 1:
@@ -160,8 +160,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSThreeImmHAndWReg(unsigned size, ExtMachInst machInst,
-                                IntRegIndex dest, IntRegIndex op1,
-                                IntRegIndex op2, uint64_t imm)
+                                RegIndex dest, RegIndex op1,
+                                RegIndex op2, uint64_t imm)
     {
         switch (size) {
           case 1:
@@ -176,8 +176,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUSThreeUSReg(bool notSigned, unsigned size,
-                           ExtMachInst machInst, IntRegIndex dest,
-                           IntRegIndex op1, IntRegIndex op2)
+                           ExtMachInst machInst, RegIndex dest,
+                           RegIndex op1, RegIndex op2)
     {
         if (notSigned) {
             return decodeNeonUThreeUSReg<Base>(
@@ -192,8 +192,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUThreeSReg(bool q, unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         if (q) {
             return decodeNeonUThreeUSReg<BaseQ>(
@@ -208,8 +208,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSThreeSReg(bool q, unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         if (q) {
             return decodeNeonSThreeUSReg<BaseQ>(
@@ -224,8 +224,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSThreeXReg(bool q, unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         if (q) {
             return decodeNeonSThreeUReg<BaseQ>(
@@ -240,8 +240,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUThreeXReg(bool q, unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         if (q) {
             return decodeNeonUThreeUReg<BaseQ>(
@@ -256,8 +256,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUSThreeSReg(bool q, bool notSigned, unsigned size,
-                          ExtMachInst machInst, IntRegIndex dest,
-                          IntRegIndex op1, IntRegIndex op2)
+                          ExtMachInst machInst, RegIndex dest,
+                          RegIndex op1, RegIndex op2)
     {
         if (notSigned) {
             return decodeNeonUThreeSReg<BaseD, BaseQ>(
@@ -272,8 +272,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUThreeReg(bool q, unsigned size,
-                        ExtMachInst machInst, IntRegIndex dest,
-                        IntRegIndex op1, IntRegIndex op2)
+                        ExtMachInst machInst, RegIndex dest,
+                        RegIndex op1, RegIndex op2)
     {
         if (q) {
             return decodeNeonUThreeUReg<BaseQ>(
@@ -288,8 +288,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSThreeReg(bool q, unsigned size,
-                        ExtMachInst machInst, IntRegIndex dest,
-                        IntRegIndex op1, IntRegIndex op2)
+                        ExtMachInst machInst, RegIndex dest,
+                        RegIndex op1, RegIndex op2)
     {
         if (q) {
             return decodeNeonSThreeUReg<BaseQ>(
@@ -304,8 +304,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUSThreeReg(bool q, bool notSigned, unsigned size,
-                         ExtMachInst machInst, IntRegIndex dest,
-                         IntRegIndex op1, IntRegIndex op2)
+                         ExtMachInst machInst, RegIndex dest,
+                         RegIndex op1, RegIndex op2)
     {
         if (notSigned) {
             return decodeNeonUThreeReg<BaseD, BaseQ>(
@@ -320,7 +320,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUThreeFpReg(bool q, unsigned size, ExtMachInst machInst,
-                          IntRegIndex dest, IntRegIndex op1, IntRegIndex op2)
+                          RegIndex dest, RegIndex op1, RegIndex op2)
     {
         if (q) {
             if (size)
@@ -338,7 +338,7 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUThreeScFpReg(bool size, ExtMachInst machInst,
-                            IntRegIndex dest, IntRegIndex op1, IntRegIndex op2)
+                            RegIndex dest, RegIndex op1, RegIndex op2)
     {
         if (size)
             return new Base<uint64_t>(machInst, dest, op1, op2);
@@ -349,8 +349,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUThreeImmScFpReg(bool size, ExtMachInst machInst,
-                               IntRegIndex dest, IntRegIndex op1,
-                               IntRegIndex op2, uint64_t imm)
+                               RegIndex dest, RegIndex op1,
+                               RegIndex op2, uint64_t imm)
     {
         if (size)
             return new Base<uint64_t>(machInst, dest, op1, op2, imm);
@@ -362,8 +362,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUThreeImmHAndWReg(bool q, unsigned size, ExtMachInst machInst,
-                                IntRegIndex dest, IntRegIndex op1,
-                                IntRegIndex op2, uint64_t imm)
+                                RegIndex dest, RegIndex op1,
+                                RegIndex op2, uint64_t imm)
     {
         if (q) {
             switch (size) {
@@ -390,8 +390,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSThreeImmHAndWReg(bool q, unsigned size, ExtMachInst machInst,
-                                IntRegIndex dest, IntRegIndex op1,
-                                IntRegIndex op2, uint64_t imm)
+                                RegIndex dest, RegIndex op1,
+                                RegIndex op2, uint64_t imm)
     {
         if (q) {
             switch (size) {
@@ -418,8 +418,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUThreeImmFpReg(bool q, unsigned size, ExtMachInst machInst,
-                             IntRegIndex dest, IntRegIndex op1,
-                             IntRegIndex op2, uint64_t imm)
+                             RegIndex dest, RegIndex op1,
+                             RegIndex op2, uint64_t imm)
     {
         if (q) {
             if (size)
@@ -438,8 +438,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoShiftReg(bool q, unsigned size,
-                           ExtMachInst machInst, IntRegIndex dest,
-                           IntRegIndex op1, uint64_t imm)
+                           ExtMachInst machInst, RegIndex dest,
+                           RegIndex op1, uint64_t imm)
     {
         if (q) {
             switch (size) {
@@ -474,8 +474,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSTwoShiftReg(bool q, unsigned size,
-                           ExtMachInst machInst, IntRegIndex dest,
-                           IntRegIndex op1, uint64_t imm)
+                           ExtMachInst machInst, RegIndex dest,
+                           RegIndex op1, uint64_t imm)
     {
         if (q) {
             switch (size) {
@@ -511,8 +511,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUSTwoShiftReg(bool q, bool notSigned, unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1, uint64_t imm)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1, uint64_t imm)
     {
         if (notSigned) {
             return decodeNeonUTwoShiftReg<BaseD, BaseQ>(
@@ -526,8 +526,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUTwoShiftUSReg(unsigned size,
-                             ExtMachInst machInst, IntRegIndex dest,
-                             IntRegIndex op1, uint64_t imm)
+                             ExtMachInst machInst, RegIndex dest,
+                             RegIndex op1, uint64_t imm)
     {
         switch (size) {
           case 0:
@@ -544,8 +544,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUTwoShiftUReg(unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1, uint64_t imm)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1, uint64_t imm)
     {
         switch (size) {
           case 0:
@@ -564,8 +564,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSTwoShiftUReg(unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1, uint64_t imm)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1, uint64_t imm)
     {
         switch (size) {
           case 0:
@@ -585,8 +585,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoShiftSReg(bool q, unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1, uint64_t imm)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1, uint64_t imm)
     {
         if (q) {
             return decodeNeonUTwoShiftUSReg<BaseQ>(
@@ -600,8 +600,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSTwoShiftUSReg(unsigned size,
-                             ExtMachInst machInst, IntRegIndex dest,
-                             IntRegIndex op1, uint64_t imm)
+                             ExtMachInst machInst, RegIndex dest,
+                             RegIndex op1, uint64_t imm)
     {
         switch (size) {
           case 0:
@@ -619,8 +619,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSTwoShiftSReg(bool q, unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1, uint64_t imm)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1, uint64_t imm)
     {
         if (q) {
             return decodeNeonSTwoShiftUSReg<BaseQ>(
@@ -635,8 +635,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUSTwoShiftSReg(bool q, bool notSigned, unsigned size,
-                             ExtMachInst machInst, IntRegIndex dest,
-                             IntRegIndex op1, uint64_t imm)
+                             ExtMachInst machInst, RegIndex dest,
+                             RegIndex op1, uint64_t imm)
     {
         if (notSigned) {
             return decodeNeonUTwoShiftSReg<BaseD, BaseQ>(
@@ -651,7 +651,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoShiftXReg(bool q, unsigned size, ExtMachInst machInst,
-                            IntRegIndex dest, IntRegIndex op1, uint64_t imm)
+                            RegIndex dest, RegIndex op1, uint64_t imm)
     {
         if (q) {
             return decodeNeonUTwoShiftUReg<BaseQ>(
@@ -666,7 +666,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSTwoShiftXReg(bool q, unsigned size, ExtMachInst machInst,
-                            IntRegIndex dest, IntRegIndex op1, uint64_t imm)
+                            RegIndex dest, RegIndex op1, uint64_t imm)
     {
         if (q) {
             return decodeNeonSTwoShiftUReg<BaseQ>(
@@ -680,7 +680,7 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUTwoShiftUFpReg(unsigned size, ExtMachInst machInst,
-                              IntRegIndex dest, IntRegIndex op1, uint64_t imm)
+                              RegIndex dest, RegIndex op1, uint64_t imm)
     {
         if (size)
             return new Base<uint64_t>(machInst, dest, op1, imm);
@@ -692,7 +692,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoShiftFpReg(bool q, unsigned size, ExtMachInst machInst,
-                             IntRegIndex dest, IntRegIndex op1, uint64_t imm)
+                             RegIndex dest, RegIndex op1, uint64_t imm)
     {
         if (q) {
             if (size)
@@ -710,8 +710,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUTwoMiscUSReg(unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1)
     {
         switch (size) {
           case 0:
@@ -728,8 +728,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSTwoMiscUSReg(unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1)
     {
         switch (size) {
           case 0:
@@ -747,8 +747,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoMiscSReg(bool q, unsigned size,
-                           ExtMachInst machInst, IntRegIndex dest,
-                           IntRegIndex op1)
+                           ExtMachInst machInst, RegIndex dest,
+                           RegIndex op1)
     {
         if (q) {
             return decodeNeonUTwoMiscUSReg<BaseQ>(size, machInst, dest, op1);
@@ -761,8 +761,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSTwoMiscSReg(bool q, unsigned size,
-                           ExtMachInst machInst, IntRegIndex dest,
-                           IntRegIndex op1)
+                           ExtMachInst machInst, RegIndex dest,
+                           RegIndex op1)
     {
         if (q) {
             return decodeNeonSTwoMiscUSReg<BaseQ>(size, machInst, dest, op1);
@@ -774,8 +774,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUTwoMiscUReg(unsigned size,
-                           ExtMachInst machInst, IntRegIndex dest,
-                           IntRegIndex op1)
+                           ExtMachInst machInst, RegIndex dest,
+                           RegIndex op1)
     {
         switch (size) {
           case 0:
@@ -794,8 +794,8 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonSTwoMiscUReg(unsigned size,
-                           ExtMachInst machInst, IntRegIndex dest,
-                           IntRegIndex op1)
+                           ExtMachInst machInst, RegIndex dest,
+                           RegIndex op1)
     {
         switch (size) {
           case 0:
@@ -815,8 +815,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSTwoMiscReg(bool q, unsigned size,
-                          ExtMachInst machInst, IntRegIndex dest,
-                          IntRegIndex op1)
+                          ExtMachInst machInst, RegIndex dest,
+                          RegIndex op1)
     {
         if (q) {
             return decodeNeonSTwoMiscUReg<BaseQ>(size, machInst, dest, op1);
@@ -829,8 +829,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoMiscReg(bool q, unsigned size,
-                          ExtMachInst machInst, IntRegIndex dest,
-                          IntRegIndex op1)
+                          ExtMachInst machInst, RegIndex dest,
+                          RegIndex op1)
     {
         if (q) {
             return decodeNeonUTwoMiscUReg<BaseQ>(size, machInst, dest, op1);
@@ -843,8 +843,8 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUSTwoMiscSReg(bool q, bool notSigned, unsigned size,
-                            ExtMachInst machInst, IntRegIndex dest,
-                            IntRegIndex op1)
+                            ExtMachInst machInst, RegIndex dest,
+                            RegIndex op1)
     {
         if (notSigned) {
             return decodeNeonUTwoShiftSReg<BaseD, BaseQ>(
@@ -859,7 +859,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoMiscXReg(bool q, unsigned size, ExtMachInst machInst,
-                           IntRegIndex dest, IntRegIndex op1)
+                           RegIndex dest, RegIndex op1)
     {
         if (q) {
             return decodeNeonUTwoMiscUReg<BaseQ>(size, machInst, dest, op1);
@@ -872,7 +872,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSTwoMiscXReg(bool q, unsigned size, ExtMachInst machInst,
-                           IntRegIndex dest, IntRegIndex op1)
+                           RegIndex dest, RegIndex op1)
     {
         if (q) {
             return decodeNeonSTwoMiscUReg<BaseQ>(size, machInst, dest, op1);
@@ -885,7 +885,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoMiscFpReg(bool q, unsigned size, ExtMachInst machInst,
-                            IntRegIndex dest, IntRegIndex op1)
+                            RegIndex dest, RegIndex op1)
     {
         if (q) {
             if (size)
@@ -904,7 +904,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUTwoMiscPwiseScFpReg(unsigned size, ExtMachInst machInst,
-                                   IntRegIndex dest, IntRegIndex op1)
+                                   RegIndex dest, RegIndex op1)
     {
         if (size)
             return new BaseQ<uint64_t>(machInst, dest, op1);
@@ -915,7 +915,7 @@ output header {{
     template <template <typename T> class Base>
     StaticInstPtr
     decodeNeonUTwoMiscScFpReg(unsigned size, ExtMachInst machInst,
-                              IntRegIndex dest, IntRegIndex op1)
+                              RegIndex dest, RegIndex op1)
     {
         if (size)
             return new Base<uint64_t>(machInst, dest, op1);
@@ -927,7 +927,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonUAcrossLanesReg(bool q, unsigned size, ExtMachInst machInst,
-                              IntRegIndex dest, IntRegIndex op1)
+                              RegIndex dest, RegIndex op1)
     {
         if (q) {
             switch (size) {
@@ -957,7 +957,7 @@ output header {{
               template <typename T> class BaseBQ>
     StaticInstPtr
     decodeNeonUAcrossLanesReg(bool q, unsigned size, ExtMachInst machInst,
-                              IntRegIndex dest, IntRegIndex op1)
+                              RegIndex dest, RegIndex op1)
     {
         if (q) {
             switch (size) {
@@ -986,7 +986,7 @@ output header {{
               template <typename T> class BaseQ>
     StaticInstPtr
     decodeNeonSAcrossLanesReg(bool q, unsigned size, ExtMachInst machInst,
-                              IntRegIndex dest, IntRegIndex op1)
+                              RegIndex dest, RegIndex op1)
     {
         if (q) {
             switch (size) {
@@ -1016,7 +1016,7 @@ output header {{
               template <typename T> class BaseBQ>
     StaticInstPtr
     decodeNeonUAcrossLanesLongReg(bool q, unsigned size, ExtMachInst machInst,
-                                  IntRegIndex dest, IntRegIndex op1)
+                                  RegIndex dest, RegIndex op1)
     {
         if (q) {
             switch (size) {
@@ -1046,7 +1046,7 @@ output header {{
               template <typename T> class BaseBQ>
     StaticInstPtr
     decodeNeonSAcrossLanesLongReg(bool q, unsigned size, ExtMachInst machInst,
-                                  IntRegIndex dest, IntRegIndex op1)
+                                  RegIndex dest, RegIndex op1)
     {
         if (q) {
             switch (size) {
@@ -2551,6 +2551,8 @@ let {{
                 destElem = (srcElem1 >> shiftAmt);
             }
             destElem += rBit;
+        } else if (shiftAmt == 0) {
+            destElem = srcElem1;
         } else {
             if (shiftAmt >= sizeof(Element) * 8) {
                 if (srcElem1 != 0) {
@@ -3052,7 +3054,7 @@ let {{
         FPSCR fpscr = (FPSCR) FpscrExc;
         float mid = binaryOp(fpscr, srcReg1, srcReg2, fpSubS,
                              true, true, VfpRoundNearest);
-        destReg = fabs(mid);
+        destReg = fabsf(mid);
         FpscrExc = fpscr;
     '''
     threeEqualRegInstFp("vabd", "VabdDFp", "SimdFloatAddOp", ("float",), 2, vabdfpCode)
@@ -3578,6 +3580,224 @@ let {{
         FpscrExc = fpscr;
     '''
     twoRegLongMiscInst("vcvt", "NVcvth2s", "SimdCvtOp", ("uint16_t",), vcvth2sCode)
+
+    vcvthp2hCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = vcvtFpHFpS(fpscr, fpscr.dn, fpscr.ahp, srcElem1);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        destElem = vfpFpToFixed<float>(mid, %s, 16, 0, true, %s);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+
+    vcvtahp2uhCode = vcvthp2hCode % ("false", "VfpRoundAway")
+    twoRegMiscInst("vcvta.u16.f16", "NVcvt2uhAD", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtahp2uhCode)
+    twoRegMiscInst("vcvta.u16.f16", "NVcvt2uhAQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtahp2uhCode)
+
+    vcvtnhp2uhCode = vcvthp2hCode % ("false", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.u16.f16", "NVcvt2uhND", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtnhp2uhCode)
+    twoRegMiscInst("vcvtn.u16.f16", "NVcvt2uhNQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtnhp2uhCode)
+
+    vcvtphp2uhCode = vcvthp2hCode % ("false", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.u16.f16", "NVcvt2uhPD", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtphp2uhCode)
+    twoRegMiscInst("vcvtp.u16.f16", "NVcvt2uhPQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtphp2uhCode)
+
+    vcvtmhp2uhCode = vcvthp2hCode % ("false", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.u16.f16", "NVcvt2uhMD", "SimdCvtOp",
+                   ("uint16_t",), 2, vcvtmhp2uhCode)
+    twoRegMiscInst("vcvtm.u16.f16", "NVcvt2uhMQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vcvtmhp2uhCode)
+
+    vcvtahp2shCode = vcvthp2hCode % ("true", "VfpRoundAway")
+    twoRegMiscInst("vcvta.s16.f16", "NVcvt2shAD", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtahp2shCode)
+    twoRegMiscInst("vcvta.s16.f16", "NVcvt2shAQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtahp2shCode)
+
+    vcvtnhp2shCode = vcvthp2hCode % ("true", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.s16.f16", "NVcvt2shND", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtnhp2shCode)
+    twoRegMiscInst("vcvtn.s16.f16", "NVcvt2shNQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtnhp2shCode)
+
+    vcvtphp2shCode = vcvthp2hCode % ("true", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.s16.f16", "NVcvt2shPD", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtphp2shCode)
+    twoRegMiscInst("vcvtp.s16.f16", "NVcvt2shPQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtphp2shCode)
+
+    vcvtmhp2shCode = vcvthp2hCode % ("true", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.s16.f16", "NVcvt2shMD", "SimdCvtOp",
+                   ("int16_t",), 2, vcvtmhp2shCode)
+    twoRegMiscInst("vcvtm.s16.f16", "NVcvt2shMQ", "SimdCvtOp",
+                   ("int16_t",), 4, vcvtmhp2shCode)
+
+    vcvtsp2sCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = bitsToFp(srcElem1, (float)0.0);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        destElem = vfpFpToFixed<float>(mid, %s, 32, 0, true, %s);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+
+    vcvtasp2usCode = vcvtsp2sCode % ("false", "VfpRoundAway")
+    twoRegMiscInst("vcvta.u32.f32", "NVcvt2usAD", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtasp2usCode)
+    twoRegMiscInst("vcvta.u32.f32", "NVcvt2usAQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtasp2usCode)
+
+    vcvtnsp2usCode = vcvtsp2sCode % ("false", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.u32.f32", "NVcvt2usND", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtnsp2usCode)
+    twoRegMiscInst("vcvtn.u32.f32", "NVcvt2usNQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtnsp2usCode)
+
+    vcvtpsp2usCode = vcvtsp2sCode % ("false", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.u32.f32", "NVcvt2usPD", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtpsp2usCode)
+    twoRegMiscInst("vcvtp.u32.f32", "NVcvt2usPQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtpsp2usCode)
+
+    vcvtmsp2usCode = vcvtsp2sCode % ("false", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.u32.f32", "NVcvt2usMD", "SimdCvtOp",
+                   ("uint32_t",), 2, vcvtmsp2usCode)
+    twoRegMiscInst("vcvtm.u32.f32", "NVcvt2usMQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vcvtmsp2usCode)
+
+    vcvtasp2ssCode = vcvtsp2sCode % ("true", "VfpRoundAway")
+    twoRegMiscInst("vcvta.s32.f32", "NVcvt2ssAD", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtasp2ssCode)
+    twoRegMiscInst("vcvta.s32.f32", "NVcvt2ssAQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtasp2ssCode)
+
+    vcvtnsp2ssCode = vcvtsp2sCode % ("true", "VfpRoundNearest")
+    twoRegMiscInst("vcvtn.s32.f32", "NVcvt2ssND", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtnsp2ssCode)
+    twoRegMiscInst("vcvtn.s32.f32", "NVcvt2ssNQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtnsp2ssCode)
+
+    vcvtpsp2ssCode = vcvtsp2sCode % ("true", "VfpRoundUpward")
+    twoRegMiscInst("vcvtp.s32.f32", "NVcvt2ssPD", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtpsp2ssCode)
+    twoRegMiscInst("vcvtp.s32.f32", "NVcvt2ssPQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtpsp2ssCode)
+
+    vcvtmsp2ssCode = vcvtsp2sCode % ("true", "VfpRoundDown")
+    twoRegMiscInst("vcvtm.s32.f32", "NVcvt2ssMD", "SimdCvtOp",
+                   ("int32_t",), 2, vcvtmsp2ssCode)
+    twoRegMiscInst("vcvtm.s32.f32", "NVcvt2ssMQ", "SimdCvtOp",
+                   ("int32_t",), 4, vcvtmsp2ssCode)
+
+    vrinthpCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = vcvtFpHFpS(fpscr, fpscr.dn, fpscr.ahp, srcElem1);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        float mid2 = vfpFpRint<float>(mid, %s, fpscr.dn, true, %s);
+        destElem = vcvtFpSFpH(fpscr, fpscr.fz, fpscr.dn, %s, fpscr.ahp, mid2);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+    vrintnhpCode = vrinthpCode % ("false",
+                                  "VfpRoundNearest", "VfpRoundNearest")
+    twoRegMiscInst("vrintn.f16", "NVrintnhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintnhpCode)
+    twoRegMiscInst("vrintn.f16", "NVrintnhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintnhpCode)
+    vrintxhpCode = vrinthpCode % ("true",
+                                  "VfpRoundNearest", "VfpRoundNearest")
+    twoRegMiscInst("vrintx.f16", "NVrintxhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintxhpCode)
+    twoRegMiscInst("vrintx.f16", "NVrintxhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintxhpCode)
+    vrintahpCode = vrinthpCode % ("false", "VfpRoundAway", "VfpRoundAway")
+    twoRegMiscInst("vrinta.f16", "NVrintahpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintahpCode)
+    twoRegMiscInst("vrinta.f16", "NVrintahpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintahpCode)
+    vrintzhpCode = vrinthpCode % ("false", "VfpRoundZero", "VfpRoundZero")
+    twoRegMiscInst("vrintz.f16", "NVrintzhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintzhpCode)
+    twoRegMiscInst("vrintz.f16", "NVrintzhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintzhpCode)
+    vrintmhpCode = vrinthpCode % ("false", "VfpRoundDown", "VfpRoundDown")
+    twoRegMiscInst("vrintm.f16", "NVrintmhpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintmhpCode)
+    twoRegMiscInst("vrintm.f16", "NVrintmhpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintmhpCode)
+    vrintphpCode = vrinthpCode % ("false", "VfpRoundUpward", "VfpRoundUpward")
+    twoRegMiscInst("vrintp.f16", "NVrintphpD", "SimdCvtOp",
+                   ("uint16_t",), 2, vrintphpCode)
+    twoRegMiscInst("vrintp.f16", "NVrintphpQ", "SimdCvtOp",
+                   ("uint16_t",), 4, vrintphpCode)
+
+    vrintspCode = '''
+        FPSCR fpscr = (FPSCR) FpscrExc;
+        VfpSavedState state = prepFpState(fpscr.rMode);
+        __asm__ __volatile__("" : "=m" (srcElem1) : "m" (srcElem1));
+        float mid = bitsToFp(srcElem1, (float)0.0);
+        if (flushToZero(mid))
+            fpscr.idc = 1;
+        float mid2 = vfpFpRint<float>(mid, %s, fpscr.dn, true, %s);
+        destElem = fpToBits(mid2);
+        __asm__ __volatile__("" :: "m" (destElem));
+        finishVfp(fpscr, state, true);
+        FpscrExc = fpscr;
+    '''
+
+    vrintnspCode = vrintspCode % ("false", "VfpRoundNearest")
+    twoRegMiscInst("vrintn.f32", "NVrintnspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintnspCode)
+    twoRegMiscInst("vrintn.f32", "NVrintnspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintnspCode)
+
+    vrintxspCode = vrintspCode % ("true", "VfpRoundNearest")
+    twoRegMiscInst("vrintx.f32", "NVrintxspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintxspCode)
+    twoRegMiscInst("vrintx.f32", "NVrintxspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintxspCode)
+
+    vrintaspCode = vrintspCode % ("false", "VfpRoundAway")
+    twoRegMiscInst("vrinta.f32", "NVrintaspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintaspCode)
+    twoRegMiscInst("vrinta.f32", "NVrintaspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintaspCode)
+
+    vrintzspCode = vrintspCode % ("false", "VfpRoundZero")
+    twoRegMiscInst("vrintz.f32", "NVrintzspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintzspCode)
+    twoRegMiscInst("vrintz.f32", "NVrintzspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintzspCode)
+
+    vrintmspCode = vrintspCode % ("false", "VfpRoundDown")
+    twoRegMiscInst("vrintm.f32", "NVrintmspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintmspCode)
+    twoRegMiscInst("vrintm.f32", "NVrintmspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintmspCode)
+
+    vrintpspCode = vrintspCode % ("false", "VfpRoundUpward")
+    twoRegMiscInst("vrintp.f32", "NVrintpspD", "SimdCvtOp",
+                   ("uint32_t",), 2, vrintpspCode)
+    twoRegMiscInst("vrintp.f32", "NVrintpspQ", "SimdCvtOp",
+                   ("uint32_t",), 4, vrintpspCode)
 
     vrsqrteCode = '''
         destElem = unsignedRSqrtEstimate(srcElem1);

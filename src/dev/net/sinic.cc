@@ -48,7 +48,6 @@ namespace gem5
 
 using namespace networking;
 
-GEM5_DEPRECATED_NAMESPACE(Sinic, sinic);
 namespace sinic
 {
 
@@ -199,7 +198,7 @@ Device::prepareWrite(ContextID cpu, int index)
 Tick
 Device::read(PacketPtr pkt)
 {
-    assert(config.command & PCI_CMD_MSE);
+    assert(config().command & PCI_CMD_MSE);
 
     Addr daddr = pkt->getAddr();
     assert(BARs[0]->range().contains(daddr));
@@ -290,7 +289,7 @@ Device::iprRead(Addr daddr, ContextID cpu, uint64_t &result)
 Tick
 Device::write(PacketPtr pkt)
 {
-    assert(config.command & PCI_CMD_MSE);
+    assert(config().command & PCI_CMD_MSE);
 
     Addr daddr = pkt->getAddr();
     assert(BARs[0]->range().contains(daddr));
@@ -1202,8 +1201,8 @@ Device::drainResume()
 void
 Base::serialize(CheckpointOut &cp) const
 {
-    // Serialize the PciDevice base class
-    PciDevice::serialize(cp);
+    // Serialize the PciEndpoint base class
+    PciEndpoint::serialize(cp);
 
     SERIALIZE_SCALAR(rxEnable);
     SERIALIZE_SCALAR(txEnable);
@@ -1223,8 +1222,8 @@ Base::serialize(CheckpointOut &cp) const
 void
 Base::unserialize(CheckpointIn &cp)
 {
-    // Unserialize the PciDevice base class
-    PciDevice::unserialize(cp);
+    // Unserialize the PciEndpoint base class
+    PciEndpoint::unserialize(cp);
 
     UNSERIALIZE_SCALAR(rxEnable);
     UNSERIALIZE_SCALAR(txEnable);
@@ -1249,7 +1248,7 @@ Device::serialize(CheckpointOut &cp) const
 {
     int count;
 
-    // Serialize the PciDevice base class
+    // Serialize the PciEndpoint base class
     Base::serialize(cp);
 
     if (rxState == rxCopy)
@@ -1362,7 +1361,7 @@ Device::serialize(CheckpointOut &cp) const
 void
 Device::unserialize(CheckpointIn &cp)
 {
-    // Unserialize the PciDevice base class
+    // Unserialize the PciEndpoint base class
     Base::unserialize(cp);
 
     /*

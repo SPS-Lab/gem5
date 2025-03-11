@@ -45,6 +45,7 @@
 #include <list>
 #include <unordered_map>
 
+#include "cpu/testers/rubytest/RubyTester.hh"
 #include "mem/ruby/common/Address.hh"
 #include "mem/ruby/protocol/MachineType.hh"
 #include "mem/ruby/protocol/RubyRequestType.hh"
@@ -126,6 +127,25 @@ class Sequencer : public RubyPort
                       const Cycles forwardRequestTime = Cycles(0),
                       const Cycles firstResponseTime = Cycles(0));
 
+    void atomicCallback(Addr address,
+                        DataBlock& data,
+                        const bool externalHit = false,
+                        const MachineType mach = MachineType_NUM,
+                        const Cycles initialRequestTime = Cycles(0),
+                        const Cycles forwardRequestTime = Cycles(0),
+                        const Cycles firstResponseTime = Cycles(0));
+
+    void unaddressedCallback(Addr unaddressedReqId,
+                             RubyRequestType requestType,
+                             const MachineType mach = MachineType_NUM,
+                             const Cycles initialRequestTime = Cycles(0),
+                             const Cycles forwardRequestTime = Cycles(0),
+                             const Cycles firstResponseTime = Cycles(0));
+
+    void completeHitCallback(std::vector<PacketPtr>& list);
+    void invL1Callback();
+    void invL1();
+
     RequestStatus makeRequest(PacketPtr pkt) override;
     virtual bool empty() const;
     int outstandingCount() const override { return m_outstanding_count; }
@@ -191,16 +211,24 @@ class Sequencer : public RubyPort
     statistics::Counter getIncompleteTimes(const MachineType t) const
     { return m_IncompleteTimes[t]; }
 
-  private:
+  protected:
     void issueRequest(PacketPtr pkt, RubyRequestType type);
+    virtual void hitCallback(SequencerRequest* srequest, DataBlock& data,
+                             bool llscSuccess,
+                             const MachineType mach, const bool externalHit,
+                             const Cycles initialRequestTime,
+                             const Cycles forwardRequestTime,
+                             const Cycles firstResponseTime,
+                             const bool was_coalesced);
 
-    void hitCallback(SequencerRequest* srequest, DataBlock& data,
-                     bool llscSuccess,
-                     const MachineType mach, const bool externalHit,
-                     const Cycles initialRequestTime,
-                     const Cycles forwardRequestTime,
-                     const Cycles firstResponseTime,
-                     const bool was_coalesced);
+    virtual bool processReadCallback(SequencerRequest &seq_req,
+                                     DataBlock& data,
+                                     const bool rubyRequest,
+                                     bool externalHit,
+                                     const MachineType mach,
+                                     Cycles initialRequestTime,
+                                     Cycles forwardRequestTime,
+                                     Cycles firstResponseTime);
 
     void recordMissLatency(SequencerRequest* srequest, bool llscSuccess,
                            const MachineType respondingMach,
@@ -208,6 +236,7 @@ class Sequencer : public RubyPort
                            Cycles forwardRequestTime,
                            Cycles firstResponseTime);
 
+  private:
     // Private copy constructor and assignment operator
     Sequencer(const Sequencer& obj);
     Sequencer& operator=(const Sequencer& obj);
@@ -215,6 +244,9 @@ class Sequencer : public RubyPort
   protected:
     // RequestTable contains both read and write requests, handles aliasing
     std::unordered_map<Addr, std::list<SequencerRequest>> m_RequestTable;
+    // UnadressedRequestTable contains "unaddressed" requests,
+    // guaranteed not to alias each other
+    std::unordered_map<uint64_t, SequencerRequest> m_UnaddressedRequestTable;
 
     Cycles m_deadlock_threshold;
 
@@ -222,8 +254,14 @@ class Sequencer : public RubyPort
                                         RubyRequestType primary_type,
                                         RubyRequestType secondary_type);
 
+    RubySystem *m_ruby_system;
+
   private:
     int m_max_outstanding_requests;
+
+    int m_num_pending_invs;
+
+    PacketPtr m_cache_inv_pkt;
 
     CacheMemory* m_dataCache_ptr;
 
@@ -239,6 +277,8 @@ class Sequencer : public RubyPort
     bool m_deadlock_check_scheduled;
 
     int m_coreId;
+
+    uint64_t m_unaddressedTransactionCnt;
 
     bool m_runningGarnetStandalone;
 
@@ -302,6 +342,18 @@ class Sequencer : public RubyPort
      * @return a boolean indicating if the line address was found.
      */
     bool llscStoreConditional(const Addr);
+
+
+    /**
+     * Increment the unaddressed transaction counter
+     */
+    void incrementUnaddressedTransactionCnt();
+
+    /**
+     * Generate the current unaddressed transaction ID based on the counter
+     * and the Sequencer object's version id.
+     */
+    uint64_t getCurrentUnaddressedTransactionID() const;
 
   public:
     /**

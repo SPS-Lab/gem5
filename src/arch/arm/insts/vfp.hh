@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2013, 2019 ARM Limited
+ * Copyright (c) 2010-2013, 2019, 2024 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -266,6 +266,7 @@ setFPExceptions(int exceptions) {
 
 template <typename T>
 uint64_t
+GEM5_NO_OPTIMIZE
 vfpFpToFixed(T val, bool isSigned, uint8_t width, uint8_t imm, bool
              useRmode = true, VfpRoundingMode roundMode = VfpRoundZero,
              bool aarch64 = false)
@@ -435,6 +436,120 @@ vfpFpToFixed(T val, bool isSigned, uint8_t width, uint8_t imm, bool
 };
 
 
+template <typename T>
+T
+GEM5_NO_OPTIMIZE
+vfpFpRint(T val, bool exact, bool defaultNan, bool useRmode = true,
+          VfpRoundingMode roundMode = VfpRoundZero)
+{
+    int  rmode;
+    bool roundAwayFix = false;
+
+    if (!useRmode) {
+        rmode = fegetround();
+    } else {
+        switch (roundMode)
+        {
+          case VfpRoundNearest:
+            rmode = FeRoundNearest;
+            break;
+          case VfpRoundUpward:
+            rmode = FeRoundUpward;
+            break;
+          case VfpRoundDown:
+            rmode = FeRoundDown;
+            break;
+          case VfpRoundZero:
+            rmode = FeRoundZero;
+            break;
+          case VfpRoundAway:
+            // There is no equivalent rounding mode, use round down and we'll
+            // fix it later
+            rmode        = FeRoundDown;
+            roundAwayFix = true;
+            break;
+          default:
+            panic("Unsupported roundMode %d\n", roundMode);
+        }
+    }
+    __asm__ __volatile__("" : "=m" (rmode) : "m" (rmode));
+    __asm__ __volatile__("" : "=m" (val) : "m" (val));
+    fesetround(rmode);
+    feclearexcept(FeAllExceptions);
+    __asm__ __volatile__("" : "=m" (val) : "m" (val));
+    T origVal = val;
+    val = rint(val);
+    __asm__ __volatile__("" : "=m" (val) : "m" (val));
+
+    int exceptions = fetestexcept(FeAllExceptions);
+    if (!exact) {
+        exceptions &= ~FeInexact;
+    }
+
+    int fpType = std::fpclassify(val);
+    if (fpType == FP_SUBNORMAL || fpType == FP_NAN) {
+        if (fpType == FP_NAN) {
+            if (isSnan(val)) {
+                exceptions |= FeInvalid;
+            }
+            if (defaultNan || !isSnan(val)) {
+                bool single = (sizeof(T) == sizeof(float));
+                uint64_t qnan = single ? 0x7fc00000 : 0x7ff8000000000000ULL;
+                val = bitsToFp(qnan, (T)0.0);
+            }
+        } else {
+            val = 0.0;
+        }
+    } else if (origVal != val) {
+        switch (rmode) {
+          case FeRoundNearest:
+            if (origVal - val > 0.5)
+                val += 1.0;
+            else if (val - origVal > 0.5)
+                val -= 1.0;
+            break;
+          case FeRoundDown:
+            if (roundAwayFix) {
+                // The ordering on the subtraction looks a bit odd in that we
+                // don't do the obvious origVal - val, instead we do
+                // -(val - origVal). This is required to get the corruct bit
+                // exact behaviour when very close to the 0.5 threshold.
+                volatile T error = val;
+                error -= origVal;
+                error = -error;
+                if ( (error >  0.5) ||
+                    ((error == 0.5) && (val >= 0)) )
+                    val += 1.0;
+            } else {
+                if (origVal < val)
+                    val -= 1.0;
+            }
+            break;
+          case FeRoundUpward:
+            if (origVal > val)
+                val += 1.0;
+            break;
+        }
+        if (exact) {
+            exceptions |= FeInexact;
+        }
+    }
+    // Fix signal of zero.
+    fpType = std::fpclassify(val);
+    if (fpType == FP_ZERO) {
+        bool single = (sizeof(T) == sizeof(float));
+        uint64_t mask = single ? 0x80000000 : 0x8000000000000000ULL;
+        val = bitsToFp((fpToBits(val) & (~mask)) | (fpToBits(origVal) & mask),
+                       (T)0.0);
+    }
+
+    // __asm__ __volatile__("" : "=m" (val) : "m" (val));
+    setFPExceptions(exceptions);
+
+    return val;
+};
+
+
 float vfpUFixedToFpS(bool flush, bool defaultNan,
         uint64_t val, uint8_t width, uint8_t imm);
 float vfpSFixedToFpS(bool flush, bool defaultNan,
@@ -458,7 +573,7 @@ class VfpMacroOp : public PredMacroOp
 {
   public:
     static bool
-    inScalarBank(IntRegIndex idx)
+    inScalarBank(RegIndex idx)
     {
         return (idx % 32) < 8;
     }
@@ -471,10 +586,10 @@ class VfpMacroOp : public PredMacroOp
         PredMacroOp(mnem, _machInst, __opClass), wide(_wide)
     {}
 
-    IntRegIndex addStride(IntRegIndex idx, unsigned stride);
-    void nextIdxs(IntRegIndex &dest, IntRegIndex &op1, IntRegIndex &op2);
-    void nextIdxs(IntRegIndex &dest, IntRegIndex &op1);
-    void nextIdxs(IntRegIndex &dest);
+    RegIndex addStride(RegIndex idx, unsigned stride);
+    void nextIdxs(RegIndex &dest, RegIndex &op1, RegIndex &op2);
+    void nextIdxs(RegIndex &dest, RegIndex &op1);
+    void nextIdxs(RegIndex &dest);
 };
 
 template <typename T>
@@ -901,12 +1016,12 @@ class FpOp : public PredOp
 class FpCondCompRegOp : public FpOp
 {
   protected:
-    IntRegIndex op1, op2;
+    RegIndex op1, op2;
     ConditionCode condCode;
     uint8_t defCc;
 
     FpCondCompRegOp(const char *mnem, ExtMachInst _machInst,
-                       OpClass __opClass, IntRegIndex _op1, IntRegIndex _op2,
+                       OpClass __opClass, RegIndex _op1, RegIndex _op2,
                        ConditionCode _condCode, uint8_t _defCc) :
         FpOp(mnem, _machInst, __opClass),
         op1(_op1), op2(_op2), condCode(_condCode), defCc(_defCc)
@@ -919,11 +1034,11 @@ class FpCondCompRegOp : public FpOp
 class FpCondSelOp : public FpOp
 {
   protected:
-    IntRegIndex dest, op1, op2;
+    RegIndex dest, op1, op2;
     ConditionCode condCode;
 
     FpCondSelOp(const char *mnem, ExtMachInst _machInst, OpClass __opClass,
-                IntRegIndex _dest, IntRegIndex _op1, IntRegIndex _op2,
+                RegIndex _dest, RegIndex _op1, RegIndex _op2,
                 ConditionCode _condCode) :
         FpOp(mnem, _machInst, __opClass),
         dest(_dest), op1(_op1), op2(_op2), condCode(_condCode)
@@ -936,11 +1051,11 @@ class FpCondSelOp : public FpOp
 class FpRegRegOp : public FpOp
 {
   protected:
-    IntRegIndex dest;
-    IntRegIndex op1;
+    RegIndex dest;
+    RegIndex op1;
 
     FpRegRegOp(const char *mnem, ExtMachInst _machInst, OpClass __opClass,
-               IntRegIndex _dest, IntRegIndex _op1,
+               RegIndex _dest, RegIndex _op1,
                VfpMicroMode mode = VfpNotAMicroop) :
         FpOp(mnem, _machInst, __opClass), dest(_dest), op1(_op1)
     {
@@ -954,11 +1069,11 @@ class FpRegRegOp : public FpOp
 class FpRegImmOp : public FpOp
 {
   protected:
-    IntRegIndex dest;
+    RegIndex dest;
     uint64_t imm;
 
     FpRegImmOp(const char *mnem, ExtMachInst _machInst, OpClass __opClass,
-               IntRegIndex _dest, uint64_t _imm,
+               RegIndex _dest, uint64_t _imm,
                VfpMicroMode mode = VfpNotAMicroop) :
         FpOp(mnem, _machInst, __opClass), dest(_dest), imm(_imm)
     {
@@ -972,12 +1087,12 @@ class FpRegImmOp : public FpOp
 class FpRegRegImmOp : public FpOp
 {
   protected:
-    IntRegIndex dest;
-    IntRegIndex op1;
+    RegIndex dest;
+    RegIndex op1;
     uint64_t imm;
 
     FpRegRegImmOp(const char *mnem, ExtMachInst _machInst, OpClass __opClass,
-                  IntRegIndex _dest, IntRegIndex _op1,
+                  RegIndex _dest, RegIndex _op1,
                   uint64_t _imm, VfpMicroMode mode = VfpNotAMicroop) :
         FpOp(mnem, _machInst, __opClass), dest(_dest), op1(_op1), imm(_imm)
     {
@@ -991,12 +1106,12 @@ class FpRegRegImmOp : public FpOp
 class FpRegRegRegOp : public FpOp
 {
   protected:
-    IntRegIndex dest;
-    IntRegIndex op1;
-    IntRegIndex op2;
+    RegIndex dest;
+    RegIndex op1;
+    RegIndex op2;
 
     FpRegRegRegOp(const char *mnem, ExtMachInst _machInst, OpClass __opClass,
-                  IntRegIndex _dest, IntRegIndex _op1, IntRegIndex _op2,
+                  RegIndex _dest, RegIndex _op1, RegIndex _op2,
                   VfpMicroMode mode = VfpNotAMicroop) :
         FpOp(mnem, _machInst, __opClass), dest(_dest), op1(_op1), op2(_op2)
     {
@@ -1010,14 +1125,14 @@ class FpRegRegRegOp : public FpOp
 class FpRegRegRegCondOp : public FpOp
 {
   protected:
-    IntRegIndex dest;
-    IntRegIndex op1;
-    IntRegIndex op2;
+    RegIndex dest;
+    RegIndex op1;
+    RegIndex op2;
     ConditionCode cond;
 
     FpRegRegRegCondOp(const char *mnem, ExtMachInst _machInst,
-                      OpClass __opClass, IntRegIndex _dest, IntRegIndex _op1,
-                      IntRegIndex _op2, ConditionCode _cond,
+                      OpClass __opClass, RegIndex _dest, RegIndex _op1,
+                      RegIndex _op2, ConditionCode _cond,
                       VfpMicroMode mode = VfpNotAMicroop) :
         FpOp(mnem, _machInst, __opClass), dest(_dest), op1(_op1), op2(_op2),
         cond(_cond)
@@ -1032,14 +1147,14 @@ class FpRegRegRegCondOp : public FpOp
 class FpRegRegRegRegOp : public FpOp
 {
   protected:
-    IntRegIndex dest;
-    IntRegIndex op1;
-    IntRegIndex op2;
-    IntRegIndex op3;
+    RegIndex dest;
+    RegIndex op1;
+    RegIndex op2;
+    RegIndex op3;
 
     FpRegRegRegRegOp(const char *mnem, ExtMachInst _machInst, OpClass __opClass,
-                     IntRegIndex _dest, IntRegIndex _op1, IntRegIndex _op2,
-                     IntRegIndex _op3, VfpMicroMode mode = VfpNotAMicroop) :
+                     RegIndex _dest, RegIndex _op1, RegIndex _op2,
+                     RegIndex _op3, VfpMicroMode mode = VfpNotAMicroop) :
         FpOp(mnem, _machInst, __opClass), dest(_dest), op1(_op1), op2(_op2),
         op3(_op3)
     {
@@ -1053,14 +1168,14 @@ class FpRegRegRegRegOp : public FpOp
 class FpRegRegRegImmOp : public FpOp
 {
   protected:
-    IntRegIndex dest;
-    IntRegIndex op1;
-    IntRegIndex op2;
+    RegIndex dest;
+    RegIndex op1;
+    RegIndex op2;
     uint64_t imm;
 
     FpRegRegRegImmOp(const char *mnem, ExtMachInst _machInst,
-                     OpClass __opClass, IntRegIndex _dest,
-                     IntRegIndex _op1, IntRegIndex _op2,
+                     OpClass __opClass, RegIndex _dest,
+                     RegIndex _op1, RegIndex _op2,
                      uint64_t _imm, VfpMicroMode mode = VfpNotAMicroop) :
         FpOp(mnem, _machInst, __opClass),
         dest(_dest), op1(_op1), op2(_op2), imm(_imm)

@@ -47,7 +47,6 @@
 
 #include <queue>
 
-#include "config/the_isa.hh"
 #include "cpu/checker/cpu.hh"
 #include "cpu/o3/dyn_inst.hh"
 #include "cpu/o3/fu_pool.hh"
@@ -57,7 +56,7 @@
 #include "debug/Drain.hh"
 #include "debug/IEW.hh"
 #include "debug/O3PipeView.hh"
-#include "params/O3CPU.hh"
+#include "params/BaseO3CPU.hh"
 
 namespace gem5
 {
@@ -65,7 +64,7 @@ namespace gem5
 namespace o3
 {
 
-IEW::IEW(CPU *_cpu, const O3CPUParams &params)
+IEW::IEW(CPU *_cpu, const BaseO3CPUParams &params)
     : issueToExecQueue(params.backComSize, params.forwardComSize),
       cpu(_cpu),
       instQueue(_cpu, this, params),
@@ -218,51 +217,13 @@ IEW::IEWStats::IEWStats(CPU *cpu)
 
 IEW::IEWStats::ExecutedInstStats::ExecutedInstStats(CPU *cpu)
     : statistics::Group(cpu),
-    ADD_STAT(numInsts, statistics::units::Count::get(),
-             "Number of executed instructions"),
-    ADD_STAT(numLoadInsts, statistics::units::Count::get(),
-             "Number of load instructions executed"),
     ADD_STAT(numSquashedInsts, statistics::units::Count::get(),
              "Number of squashed instructions skipped in execute"),
     ADD_STAT(numSwp, statistics::units::Count::get(),
-             "Number of swp insts executed"),
-    ADD_STAT(numNop, statistics::units::Count::get(),
-             "Number of nop insts executed"),
-    ADD_STAT(numRefs, statistics::units::Count::get(),
-             "Number of memory reference insts executed"),
-    ADD_STAT(numBranches, statistics::units::Count::get(),
-             "Number of branches executed"),
-    ADD_STAT(numStoreInsts, statistics::units::Count::get(),
-             "Number of stores executed"),
-    ADD_STAT(numRate, statistics::units::Rate<
-                statistics::units::Count, statistics::units::Cycle>::get(),
-             "Inst execution rate", numInsts / cpu->baseStats.numCycles)
+             "Number of swp insts executed")
 {
-    numLoadInsts
-        .init(cpu->numThreads)
-        .flags(statistics::total);
-
     numSwp
         .init(cpu->numThreads)
-        .flags(statistics::total);
-
-    numNop
-        .init(cpu->numThreads)
-        .flags(statistics::total);
-
-    numRefs
-        .init(cpu->numThreads)
-        .flags(statistics::total);
-
-    numBranches
-        .init(cpu->numThreads)
-        .flags(statistics::total);
-
-    numStoreInsts
-        .flags(statistics::total);
-    numStoreInsts = numRefs - numLoadInsts;
-
-    numRate
         .flags(statistics::total);
 }
 
@@ -299,6 +260,36 @@ IEW::clearStates(ThreadID tid)
     toRename->iewInfo[tid].usedLSQ = true;
     toRename->iewInfo[tid].freeLQEntries = ldstQueue.numFreeLoadEntries(tid);
     toRename->iewInfo[tid].freeSQEntries = ldstQueue.numFreeStoreEntries(tid);
+
+    // Clear out any of this thread's instructions being sent to commit.
+    for (int i = -cpu->iewQueue.getPast();
+         i <= cpu->iewQueue.getFuture(); ++i) {
+        IEWStruct& iew_struct = cpu->iewQueue[i];
+        removeCommThreadInsts(tid, iew_struct);
+        iew_struct.mispredictInst[tid] = nullptr;
+        iew_struct.mispredPC[tid] = 0;
+        iew_struct.squashedSeqNum[tid] = 0;
+        iew_struct.pc[tid] = nullptr;
+        iew_struct.squash[tid] = false;
+        iew_struct.branchMispredict[tid] = false;
+        iew_struct.branchTaken[tid] = false;
+        iew_struct.includeSquashInst[tid] = false;
+    }
+
+    // Clear out any of this thread's instructions being sent from
+    // issue to execute.
+    for (int i = -issueToExecQueue.getPast();
+         i <= issueToExecQueue.getFuture(); ++i)
+        removeCommThreadInsts(tid, issueToExecQueue[i]);
+
+    // Clear out any of this thread's instructions being sent to prior stages.
+    for (int i = -cpu->timeBuffer.getPast();
+         i <= cpu->timeBuffer.getFuture(); ++i) {
+        TimeStruct& time_struct = cpu->timeBuffer[i];
+        time_struct.iewInfo[tid] = {};
+        time_struct.iewBlock[tid] = false;
+        time_struct.iewUnblock[tid] = false;
+    }
 }
 
 void
@@ -770,7 +761,7 @@ void
 IEW::sortInsts()
 {
     int insts_from_rename = fromRename->size;
-#ifdef DEBUG
+#ifdef GEM5_DEBUG
     for (ThreadID tid = 0; tid < numThreads; tid++)
         assert(insts[tid].empty());
 #endif
@@ -1054,7 +1045,7 @@ IEW::dispatchInsts(ThreadID tid)
 
             instQueue.recordProducer(inst);
 
-            iewStats.executedInstStats.numNop[tid]++;
+            cpu->executeStats[tid]->numNop++;
 
             add_to_iq = false;
         } else {
@@ -1562,7 +1553,7 @@ IEW::updateExeInstStats(const DynInstPtr& inst)
 {
     ThreadID tid = inst->threadNumber;
 
-    iewStats.executedInstStats.numInsts++;
+    cpu->executeStats[tid]->numInsts++;
 
 #if TRACING_ON
     if (debug::O3PipeView) {
@@ -1573,17 +1564,18 @@ IEW::updateExeInstStats(const DynInstPtr& inst)
     //
     //  Control operations
     //
-    if (inst->isControl())
-        iewStats.executedInstStats.numBranches[tid]++;
+    if (inst->isControl()) {
+        cpu->executeStats[tid]->numBranches++;
+    }
 
     //
     //  Memory operations
     //
     if (inst->isMemRef()) {
-        iewStats.executedInstStats.numRefs[tid]++;
+        cpu->executeStats[tid]->numMemRefs++;
 
         if (inst->isLoad()) {
-            iewStats.executedInstStats.numLoadInsts[tid]++;
+            cpu->executeStats[tid]->numLoadInsts++;
         }
     }
 }

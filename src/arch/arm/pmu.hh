@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2014, 2017-2018 ARM Limited
+ * Copyright (c) 2011-2014, 2017-2018, 2022-2023 Arm Limited
  * All rights reserved
  *
  * The license below extends only to copyright in the software and shall
@@ -47,6 +47,7 @@
 #include "base/cprintf.hh"
 #include "cpu/base.hh"
 #include "debug/PMUVerbose.hh"
+#include "mem/cache/cache_probe_arg.hh"
 #include "sim/eventq.hh"
 #include "sim/sim_object.hh"
 #include "sim/system.hh"
@@ -358,16 +359,32 @@ class PMU : public SimObject, public ArmISA::BaseISADevice
         }
 
       protected:
-        struct RegularProbe: public  ProbeListenerArgBase<uint64_t>
+        struct RegularProbe : public ProbeListenerArgBase<uint64_t>
         {
-            RegularProbe(RegularEvent *parent, SimObject* obj,
-                std::string name)
-                : ProbeListenerArgBase(obj->getProbeManager(), name),
-                  parentEvent(parent) {}
+            RegularProbe(RegularEvent *parent, std::string name)
+                : ProbeListenerArgBase(std::move(name)), parentEvent(parent)
+            {}
 
             RegularProbe() = delete;
 
-            void notify(const uint64_t &val);
+            void notify(const uint64_t &val) override;
+
+          protected:
+            RegularEvent *parentEvent;
+        };
+
+        struct CacheProbe : public ProbeListenerArgBase<CacheAccessProbeArg>
+        {
+            CacheProbe(RegularEvent *parent, std::string name)
+                : ProbeListenerArgBase(std::move(name)), parentEvent(parent)
+            {}
+
+            CacheProbe() = delete;
+
+            void notify(const CacheAccessProbeArg &val) override
+            {
+                parentEvent->increment(1);
+            };
 
           protected:
             RegularEvent *parentEvent;
@@ -379,7 +396,7 @@ class PMU : public SimObject, public ArmISA::BaseISADevice
         /** Set of probe listeners tapping onto each of the input micro-arch
          *  events which compose this pmu event
          */
-        std::vector<std::unique_ptr<RegularProbe>> attachedProbePointList;
+        std::vector<ProbeListenerPtr<>> attachedProbePointList;
 
         void enable() override;
 
@@ -413,9 +430,10 @@ class PMU : public SimObject, public ArmISA::BaseISADevice
     /** State of a counter within the PMU. **/
     struct CounterState : public Serializable
     {
-        CounterState(PMU &pmuReference, uint64_t counter_id)
+        CounterState(PMU &pmuReference, uint64_t counter_id,
+                     const bool is_64_bit)
             : eventId(0), filter(0), enabled(false),
-              overflow64(false), sourceEvent(nullptr),
+              overflow64(is_64_bit), sourceEvent(nullptr),
               counterId(counter_id), value(0), resetValue(false),
               pmu(pmuReference) {}
 
@@ -572,6 +590,9 @@ class PMU : public SimObject, public ArmISA::BaseISADevice
     void updateAllCounters();
 
   protected: /* State that needs to be serialized */
+    /** Determine whether to use 64-bit or 32-bit counters. */
+    bool use64bitCounters;
+
     /** Performance Monitor Count Enable Register */
     RegVal reg_pmcnten;
 
@@ -628,6 +649,16 @@ class PMU : public SimObject, public ArmISA::BaseISADevice
      * List of event types supported by this PMU.
      */
     std::map<EventTypeId, std::shared_ptr<PMUEvent>> eventMap;
+
+    /**
+     * Exit simloop on PMU reset or disable
+     */
+    const bool exitOnPMUControl;
+
+    /**
+     * Exit simloop on PMU interrupt
+     */
+    bool exitOnPMUInterrupt;
 };
 
 } // namespace ArmISA

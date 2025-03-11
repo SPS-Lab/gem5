@@ -50,11 +50,13 @@
 #include <iostream>
 #include <string>
 
+#include "base/intmath.hh"
 #include "base/trace.hh"
 #include "debug/AddrRanges.hh"
 #include "debug/Checkpoint.hh"
 #include "mem/abstract_mem.hh"
 #include "sim/serialize.hh"
+#include "sim/sim_exit.hh"
 
 /**
  * On Linux, MAP_NORESERVE allow us to simulate a very large memory
@@ -77,10 +79,17 @@ namespace memory
 PhysicalMemory::PhysicalMemory(const std::string& _name,
                                const std::vector<AbstractMemory*>& _memories,
                                bool mmap_using_noreserve,
-                               const std::string& shared_backstore) :
+                               const std::string& shared_backstore,
+                               bool auto_unlink_shared_backstore) :
     _name(_name), size(0), mmapUsingNoReserve(mmap_using_noreserve),
-    sharedBackstore(shared_backstore)
+    sharedBackstore(shared_backstore), sharedBackstoreSize(0),
+    pageSize(sysconf(_SC_PAGE_SIZE))
 {
+    // Register cleanup callback if requested.
+    if (auto_unlink_shared_backstore && !sharedBackstore.empty()) {
+        registerExitCallback([=]() { shm_unlink(shared_backstore.c_str()); });
+    }
+
     if (mmap_using_noreserve)
         warn("Not reserving swap space. May cause SIGSEGV on actual usage\n");
 
@@ -201,17 +210,24 @@ PhysicalMemory::createBackingStore(
 
     int shm_fd;
     int map_flags;
+    off_t map_offset;
 
     if (sharedBackstore.empty()) {
         shm_fd = -1;
         map_flags =  MAP_ANON | MAP_PRIVATE;
+        map_offset = 0;
     } else {
-        DPRINTF(AddrRanges, "Sharing backing store as %s\n",
-                sharedBackstore.c_str());
+        // Newly create backstore will be located after previous one.
+        map_offset = sharedBackstoreSize;
+        // mmap requires the offset to be multiple of page, so we need to
+        // upscale the range size.
+        sharedBackstoreSize += roundUp(range.size(), pageSize);
+        DPRINTF(AddrRanges, "Sharing backing store as %s at offset %llu\n",
+                sharedBackstore.c_str(), (uint64_t)map_offset);
         shm_fd = shm_open(sharedBackstore.c_str(), O_CREAT | O_RDWR, 0666);
         if (shm_fd == -1)
                panic("Shared memory failed");
-        if (ftruncate(shm_fd, range.size()))
+        if (ftruncate(shm_fd, sharedBackstoreSize))
                panic("Setting size of shared memory failed");
         map_flags = MAP_SHARED;
     }
@@ -224,7 +240,7 @@ PhysicalMemory::createBackingStore(
 
     uint8_t* pmem = (uint8_t*) mmap(NULL, range.size(),
                                     PROT_READ | PROT_WRITE,
-                                    map_flags, shm_fd, 0);
+                                    map_flags, shm_fd, map_offset);
 
     if (pmem == (uint8_t*) MAP_FAILED) {
         perror("mmap");
@@ -235,7 +251,8 @@ PhysicalMemory::createBackingStore(
     // remember this backing store so we can checkpoint it and unmap
     // it appropriately
     backingStore.emplace_back(range, pmem,
-                              conf_table_reported, in_addr_map, kvm_map);
+                              conf_table_reported, in_addr_map, kvm_map,
+                              shm_fd, map_offset);
 
     // point the memories to their backing store
     for (const auto& m : _memories) {
@@ -350,7 +367,7 @@ PhysicalMemory::serializeStore(CheckpointOut &cp, unsigned int store_id,
     // memories that are not part of the address map can overlap
     std::string filename =
         name() + ".store" + std::to_string(store_id) + ".pmem";
-    long range_size = range.size();
+    Addr range_size = range.size();
 
     DPRINTF(Checkpoint, "Serializing physical memory %s with size %d\n",
             filename, range_size);
@@ -435,7 +452,7 @@ PhysicalMemory::unserializeStore(CheckpointIn &cp)
     uint8_t* pmem = backingStore[store_id].pmem;
     AddrRange range = backingStore[store_id].range;
 
-    long range_size;
+    Addr range_size;
     UNSERIALIZE_SCALAR(range_size);
 
     DPRINTF(Checkpoint, "Unserializing physical memory %s with size %d\n",
@@ -446,28 +463,14 @@ PhysicalMemory::unserializeStore(CheckpointIn &cp)
               range_size, range.size());
 
     uint64_t curr_size = 0;
-    long* temp_page = new long[chunk_size];
-    long* pmem_current;
     uint32_t bytes_read;
     while (curr_size < range.size()) {
-        bytes_read = gzread(compressed_mem, temp_page, chunk_size);
+        bytes_read = gzread(compressed_mem, pmem, chunk_size);
         if (bytes_read == 0)
             break;
-
-        assert(bytes_read % sizeof(long) == 0);
-
-        for (uint32_t x = 0; x < bytes_read / sizeof(long); x++) {
-            // Only copy bytes that are non-zero, so we don't give
-            // the VM system hell
-            if (*(temp_page + x) != 0) {
-                pmem_current = (long*)(pmem + curr_size + x * sizeof(long));
-                *pmem_current = *(temp_page + x);
-            }
-        }
         curr_size += bytes_read;
+        pmem += bytes_read;
     }
-
-    delete[] temp_page;
 
     if (gzclose(compressed_mem))
         fatal("Close failed on physical memory checkpoint file '%s'\n",

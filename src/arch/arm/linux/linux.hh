@@ -290,7 +290,7 @@ class ArmLinux32 : public ArmLinux, public OpenFlagTable<ArmLinux32>
         ArmLinux::archClone(flags, pp, cp, ptc, ctc, stack, tls);
 
         if (stack)
-            ctc->setIntReg(ArmISA::INTREG_SP, stack);
+            ctc->setReg(ArmISA::int_reg::Sp, stack);
     }
 };
 
@@ -536,6 +536,22 @@ class ArmLinux64 : public ArmLinux, public OpenFlagTable<ArmLinux64>
         int64_t tms_cstime;     //!< system time of children
     };
 
+    // For clone(3)
+    struct tgt_clone_args
+    {
+        uint64_t flags;
+        uint64_t pidfd;
+        uint64_t child_tid;
+        uint64_t parent_tid;
+        uint64_t exit_signal;
+        uint64_t stack;
+        uint64_t stack_size;
+        uint64_t tls;
+        uint64_t set_tid;
+        uint64_t set_tid_size;
+        uint64_t cgroup;
+    };
+
     static void archClone(uint64_t flags,
                           Process *pp, Process *cp,
                           ThreadContext *ptc, ThreadContext *ctc,
@@ -544,7 +560,7 @@ class ArmLinux64 : public ArmLinux, public OpenFlagTable<ArmLinux64>
         ArmLinux::archClone(flags, pp, cp, ptc, ctc, stack, tls);
 
         if (stack)
-            ctc->setIntReg(ArmISA::INTREG_SP0, stack);
+            ctc->setReg(ArmISA::int_reg::Sp0, stack);
     }
 };
 

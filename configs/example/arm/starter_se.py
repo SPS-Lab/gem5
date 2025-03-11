@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2017 ARM Limited
+# Copyright (c) 2016-2017, 2022-2024 Arm Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -38,14 +38,14 @@ Research Starter Kit on System Modeling. More information can be found
 at: http://www.arm.com/ResearchEnablement/SystemModeling
 """
 
-import os
-import m5
-from m5.util import addToPath
-from m5.objects import *
 import argparse
+import os
 import shlex
 
-m5.util.addToPath('../..')
+import m5
+from m5.objects import *
+from m5.util import addToPath
+
 
 from common import ObjectList
 from common import MemConfig
@@ -60,10 +60,24 @@ from cfg_generater import generate_configs
 
 
 
+m5.util.addToPath("../..")
+
+import devices
+from common import (
+    MemConfig,
+    ObjectList,
+)
+from common.cores.arm import (
+    HPI,
+    O3_ARM_v7a,
+)
+
+
 # Pre-defined CPU configurations. Each tuple must be ordered as : (cpu_class,
-# l1_icache_class, l1_dcache_class, walk_cache_class, l2_Cache_class). Any of
+# l1_icache_class, l1_dcache_class, l2_Cache_class). Any of
 # the cache class may be 'None' if the particular cache is not present.
 cpu_types = {
+
     "atomic" : ( AtomicSimpleCPU, None, None, None),
     "minor" : (MinorCPU,
                devices.L1I, devices.L1D,
@@ -162,6 +176,7 @@ class SimpleSeSystem(System):
     def numCpus(self):
         return self._num_cpus
 
+
 def get_processes(cmd):
     """Interprets commands to run and returns a list of processes"""
 
@@ -180,6 +195,7 @@ def get_processes(cmd):
 
 
 def create(args):
+
     ''' Create and configure the system object. '''
 
     if args.l1d_size != "":
@@ -198,6 +214,7 @@ def create(args):
 
     system = SimpleSeSystem(args)
 
+
     if args.random > 0:
         for i in range(args.num_cores):
             system.cpu_cluster.cpus[i].branchPred = branchPred()
@@ -205,17 +222,22 @@ def create(args):
     # Tell components about the expected physical memory ranges. This
     # is, for example, used by the MemConfig helper to determine where
     # to map DRAMs in the physical address space.
-    system.mem_ranges = [ AddrRange(start=0, size=args.mem_size) ]
+    system.mem_ranges = [AddrRange(start=0, size=args.mem_size)]
 
     # Configure the off-chip memory system.
     MemConfig.config_mem(args, system)
+
+    # Wire up the system's memory system
+    system.connect()
 
     # Parse the command line and get a list of Processes instances
     # that we can pass to gem5.
     processes = get_processes(args.commands_to_run)
     if len(processes) != args.num_cores:
-        print("Error: Cannot map %d command(s) onto %d CPU(s)" %
-              (len(processes), args.num_cores))
+        print(
+            "Error: Cannot map %d command(s) onto %d CPU(s)"
+            % (len(processes), args.num_cores)
+        )
         sys.exit(1)
 
     system.workload = SEWorkload.init_compatible(processes[0].executable)
@@ -229,6 +251,7 @@ def create(args):
 
 def main():
     parser = argparse.ArgumentParser(epilog=__doc__)
+
 
     parser.add_argument("commands_to_run", metavar="command(s)", nargs='*',
                         help="Command(s) to run")
@@ -263,6 +286,7 @@ def main():
     parser.add_argument("--random", "-r", type=int, default=0,
                         help="Random number for configurations")
 
+
     args = parser.parse_args()
 
     # Create a single root node for gem5's object hierarchy. There can
@@ -274,6 +298,7 @@ def main():
     # Populate the root node with a system. A system corresponds to a
     # single node with shared memory.
     root.system = create(args)
+    root.apply_config(args.param)
 
     # Instantiate the C++ object hierarchy. After this point,
     # SimObjects can't be instantiated anymore.
@@ -293,8 +318,7 @@ def main():
     # Print the reason for the simulation exit. Some exit codes are
     # requests for service (e.g., checkpoints) from the simulation
     # script. We'll just ignore them here and exit.
-    print(event.getCause(), " @ ", m5.curTick())
-    sys.exit(event.getCode())
+    print(f"{event.getCause()} ({event.getCode()}) @ {m5.curTick()}")
 
 
 if __name__ == "__m5_main__":

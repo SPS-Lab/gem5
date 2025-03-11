@@ -38,6 +38,7 @@
 #include "debug/GPUVRF.hh"
 #include "gpu-compute/compute_unit.hh"
 #include "gpu-compute/gpu_static_inst.hh"
+#include "gpu-compute/register_file_cache.hh"
 #include "gpu-compute/scalar_register_file.hh"
 #include "gpu-compute/vector_register_file.hh"
 #include "gpu-compute/wavefront.hh"
@@ -140,14 +141,18 @@ ScheduleStage::exec()
         } else {
             if (gpu_dyn_inst->isScalar() || gpu_dyn_inst->isGroupSeg()) {
                 wf->incLGKMInstsIssued();
+                wf->trackLGKMInst(gpu_dyn_inst);
             } else {
                 wf->incVMemInstsIssued();
+                wf->trackVMemInst(gpu_dyn_inst);
                 if (gpu_dyn_inst->isFlat()) {
                     wf->incLGKMInstsIssued();
+                    wf->trackLGKMInst(gpu_dyn_inst);
                 }
             }
             if (gpu_dyn_inst->isStore() && gpu_dyn_inst->isGlobalSeg()) {
                 wf->incExpInstsIssued();
+                wf->trackExpInst(gpu_dyn_inst);
             }
         }
     }
@@ -308,6 +313,8 @@ ScheduleStage::addToSchList(int exeType, const GPUDynInstPtr &gpu_dyn_inst)
     // place wave in wavesInSch and pipeMap, and schedule Rd/Wr operands
     // to the VRF
     bool accessRf = accessVrf && accessSrf;
+    wf->lastVrfStatus = accessVrf;
+    wf->lastSrfStatus = accessSrf;
     if (accessRf) {
         DPRINTF(GPUSched, "schList[%d]: Adding: SIMD[%d] WV[%d]: %d: %s\n",
                 exeType, wf->simdId, wf->wfDynId,
@@ -579,7 +586,7 @@ ScheduleStage::fillDispatchList()
                     // operation.
                     GPUDynInstPtr mp = schIter->first;
                     if (!mp->isMemSync() && !mp->isScalar() &&
-                        (mp->isGlobalMem() || mp->isFlat())) {
+                        mp->needsToken()) {
                         computeUnit.globalMemoryPipe.acqCoalescerToken(mp);
                     }
 
@@ -625,8 +632,6 @@ void
 ScheduleStage::arbitrateVrfToLdsBus()
 {
     // Arbitrate the VRF->GM and VRF->LDS buses for Flat memory ops
-    // Note: a Flat instruction in GFx8 reserves both VRF->Glb memory bus
-    // and a VRF->LDS bus. In GFx9, this is not the case.
 
     // iterate the GM pipelines
     for (int i = 0; i < computeUnit.numVectorGlobalMemUnits; i++) {

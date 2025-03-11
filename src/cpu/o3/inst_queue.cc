@@ -50,7 +50,7 @@
 #include "cpu/o3/limits.hh"
 #include "debug/IQ.hh"
 #include "enums/OpClass.hh"
-#include "params/O3CPU.hh"
+#include "params/BaseO3CPU.hh"
 #include "sim/core.hh"
 
 // clang complains about std::set being overloaded with Packet::set if
@@ -85,7 +85,7 @@ InstructionQueue::FUCompletion::description() const
 }
 
 InstructionQueue::InstructionQueue(CPU *cpu_ptr, IEW *iew_ptr,
-        const O3CPUParams &params)
+        const BaseO3CPUParams &params)
     : cpu(cpu_ptr),
       iewStage(iew_ptr),
       fuPool(params.fuPool),
@@ -99,12 +99,16 @@ InstructionQueue::InstructionQueue(CPU *cpu_ptr, IEW *iew_ptr,
 {
     assert(fuPool);
 
+    const auto &reg_classes = params.isa[0]->regClasses();
     // Set the number of total physical registers
     // As the vector registers have two addressing modes, they are added twice
     numPhysRegs = params.numPhysIntRegs + params.numPhysFloatRegs +
                     params.numPhysVecRegs +
-                    params.numPhysVecRegs * TheISA::NumVecElemPerVecReg +
+                    params.numPhysVecRegs * (
+                            reg_classes.at(VecElemClass)->numRegs() /
+                            reg_classes.at(VecRegClass)->numRegs()) +
                     params.numPhysVecPredRegs +
+                    params.numPhysMatRegs +
                     params.numPhysCCRegs;
 
     //Create an entry for each physical register within the
@@ -161,7 +165,7 @@ InstructionQueue::InstructionQueue(CPU *cpu_ptr, IEW *iew_ptr,
 InstructionQueue::~InstructionQueue()
 {
     dependGraph.reset();
-#ifdef DEBUG
+#ifdef GEM5_DEBUG
     cprintf("Nodes traversed: %i, removed: %i\n",
             dependGraph.nodesTraversed, dependGraph.nodesRemoved);
 #endif
@@ -808,7 +812,7 @@ InstructionQueue::scheduleReadyInsts()
             continue;
         }
 
-        int idx = FUPool::NoCapableFU;
+        int idx = FUPool::NoNeedFU;
         Cycles op_latency = Cycles(1);
         ThreadID tid = issuing_inst->threadNumber;
 
@@ -828,7 +832,8 @@ InstructionQueue::scheduleReadyInsts()
 
         // If we have an instruction that doesn't require a FU, or a
         // valid FU, then schedule for execution.
-        if (idx != FUPool::NoFreeFU) {
+        if (idx > FUPool::NoFreeFU || idx == FUPool::NoNeedFU ||
+            idx == FUPool::NoCapableFU) {
             if (op_latency == Cycles(1)) {
                 i2e_info->size++;
                 instsToExecute.push_back(issuing_inst);
@@ -837,7 +842,17 @@ InstructionQueue::scheduleReadyInsts()
                 // cycle if we used one.
                 if (idx >= 0)
                     fuPool->freeUnitNextCycle(idx);
+
+                // CPU has no capable FU for the instruction
+                // but this may be OK if the instruction gets
+                // squashed. Remember this and give IEW
+                // the opportunity to trigger a fault
+                // if the instruction is unsupported.
+                // Otherwise, commit will panic.
+                if (idx == FUPool::NoCapableFU)
+                  issuing_inst->setNoCapableFU();
             } else {
+                assert(idx != FUPool::NoCapableFU);
                 bool pipelined = fuPool->isPipelined(op_class);
                 // Generate completion event for the FU
                 ++wbOutstanding;
@@ -894,6 +909,7 @@ InstructionQueue::scheduleReadyInsts()
             listOrder.erase(order_it++);
             iqStats.statIssuedInstType[tid][op_class]++;
         } else {
+            assert(idx == FUPool::NoFreeFU);
             iqStats.statFuBusy[op_class]++;
             iqStats.fuBusy[tid]++;
             ++order_it;

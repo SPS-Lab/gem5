@@ -135,8 +135,7 @@ FpRegRegRegCondOp::generateDisassembly(
     const
 {
     std::stringstream ss;
-    printMnemonic(ss);
-    printCondition(ss, cond);
+    printMnemonic(ss, "", /*withPred=*/false, /*withCond64=*/true, cond);
     printFloatReg(ss, dest);
     ss << ", ";
     printFloatReg(ss, op1);
@@ -1163,21 +1162,21 @@ template
 double FpOp::unaryOp(FPSCR &fpscr, double op1, double (*func)(double),
                      bool flush, uint32_t rMode) const;
 
-IntRegIndex
-VfpMacroOp::addStride(IntRegIndex idx, unsigned stride)
+RegIndex
+VfpMacroOp::addStride(RegIndex idx, unsigned stride)
 {
     if (wide) {
         stride *= 2;
     }
     unsigned offset = idx % 8;
-    idx = (IntRegIndex)(idx - offset);
+    idx = (RegIndex)(idx - offset);
     offset += stride;
-    idx = (IntRegIndex)(idx + (offset % 8));
+    idx = (RegIndex)(idx + (offset % 8));
     return idx;
 }
 
 void
-VfpMacroOp::nextIdxs(IntRegIndex &dest, IntRegIndex &op1, IntRegIndex &op2)
+VfpMacroOp::nextIdxs(RegIndex &dest, RegIndex &op1, RegIndex &op2)
 {
     unsigned stride = (machInst.fpscrStride == 0) ? 1 : 2;
     assert(!inScalarBank(dest));
@@ -1189,7 +1188,7 @@ VfpMacroOp::nextIdxs(IntRegIndex &dest, IntRegIndex &op1, IntRegIndex &op2)
 }
 
 void
-VfpMacroOp::nextIdxs(IntRegIndex &dest, IntRegIndex &op1)
+VfpMacroOp::nextIdxs(RegIndex &dest, RegIndex &op1)
 {
     unsigned stride = (machInst.fpscrStride == 0) ? 1 : 2;
     assert(!inScalarBank(dest));
@@ -1200,7 +1199,7 @@ VfpMacroOp::nextIdxs(IntRegIndex &dest, IntRegIndex &op1)
 }
 
 void
-VfpMacroOp::nextIdxs(IntRegIndex &dest)
+VfpMacroOp::nextIdxs(RegIndex &dest)
 {
     unsigned stride = (machInst.fpscrStride == 0) ? 1 : 2;
     assert(!inScalarBank(dest));

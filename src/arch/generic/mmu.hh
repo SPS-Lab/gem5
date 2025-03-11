@@ -110,6 +110,8 @@ class BaseMMU : public SimObject
 
     virtual void flushAll();
 
+    virtual void reset();
+
     void demapPage(Addr vaddr, uint64_t asn);
 
     virtual Fault
@@ -124,6 +126,8 @@ class BaseMMU : public SimObject
     virtual Fault
     translateFunctional(const RequestPtr &req, ThreadContext *tc,
                         Mode mode);
+
+    virtual Addr getValidAddr(Addr vaddr, ThreadContext *tc, Mode mode);
 
     class MMUTranslationGen : public TranslationGen
     {

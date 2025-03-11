@@ -50,10 +50,6 @@
 #include "params/IdeController.hh"
 #include "sim/byteswap.hh"
 
-// clang complains about std::set being overloaded with Packet::set if
-// we open up the entire namespace std
-using std::string;
-
 namespace gem5
 {
 
@@ -65,7 +61,9 @@ enum BMIRegOffset
     BMIDescTablePtr = 0x4
 };
 
-IdeController::Channel::Channel(string newName) : _name(newName)
+IdeController::Channel::Channel(std::string new_name, IdeController *new_ctrl,
+        bool new_primary) :
+    Named(new_name), ctrl(new_ctrl), primary(new_primary)
 {
     bmiRegs.reset();
     bmiRegs.status.dmaCap0 = 1;
@@ -73,35 +71,29 @@ IdeController::Channel::Channel(string newName) : _name(newName)
 }
 
 IdeController::IdeController(const Params &p)
-    : PciDevice(p), configSpaceRegs(name() + ".config_space_regs"),
-    primary(name() + ".primary"),
-    secondary(name() + ".secondary"),
+    : PciEndpoint(p), configSpaceRegs(name() + ".config_space_regs"),
+    primary(name() + ".primary", this, true),
+    secondary(name() + ".secondary", this, false),
     ioShift(p.io_shift), ctrlOffset(p.ctrl_offset)
 {
+    panic_if(params().disks.size() > 4,
+            "IDE controllers support a maximum of 4 devices attached!");
 
     // Assign the disks to channels
     for (int i = 0; i < params().disks.size(); i++) {
-        if (!params().disks[i])
+        auto *disk = params().disks[i];
+        auto &channel = (i < 2) ? primary : secondary;
+
+        if (!disk)
             continue;
-        switch (i) {
-          case 0:
-            primary.device0 = params().disks[0];
-            break;
-          case 1:
-            primary.device1 = params().disks[1];
-            break;
-          case 2:
-            secondary.device0 = params().disks[2];
-            break;
-          case 3:
-            secondary.device1 = params().disks[3];
-            break;
-          default:
-            panic("IDE controllers support a maximum "
-                  "of 4 devices attached!\n");
-        }
+
+        if (i % 2 == 0)
+            channel.setDevice0(disk);
+        else
+            channel.setDevice1(disk);
+
         // Arbitrarily set the chunk size to 4K.
-        params().disks[i]->setController(this, 4 * 1024);
+        disk->setChannel(&channel, 4 * 1024);
     }
 
     primary.select(false);
@@ -128,34 +120,38 @@ IdeController::ConfigSpaceRegs::unserialize(CheckpointIn &cp)
     UNSERIALIZE_SCALAR(udmaTiming);
 }
 
-bool
-IdeController::isDiskSelected(IdeDisk *diskPtr)
+void
+IdeController::Channel::postInterrupt()
 {
-    return (primary.selected == diskPtr || secondary.selected == diskPtr);
+    bmiRegs.status.intStatus = 1;
+    _pendingInterrupt = true;
+    ctrl->postInterrupt(isPrimary());
 }
 
 void
-IdeController::intrPost()
+IdeController::Channel::clearInterrupt()
 {
-    primary.bmiRegs.status.intStatus = 1;
-    PciDevice::intrPost();
+    bmiRegs.status.intStatus = 0;
+    _pendingInterrupt = false;
+    ctrl->clearInterrupt(isPrimary());
 }
 
 void
-IdeController::setDmaComplete(IdeDisk *disk)
+IdeController::postInterrupt(bool is_primary)
 {
-    Channel *channel;
-    if (disk == primary.device0 || disk == primary.device1) {
-        channel = &primary;
-    } else if (disk == secondary.device0 || disk == secondary.device1) {
-        channel = &secondary;
-    } else {
-        panic("Unable to find disk based on pointer %#x\n", disk);
-    }
+    auto &other = is_primary ? secondary : primary;
+    // If an interrupt isn't already posted for the other channel...
+    if (!other.pendingInterrupt())
+        PciEndpoint::intrPost();
+}
 
-    channel->bmiRegs.command.startStop = 0;
-    channel->bmiRegs.status.active = 0;
-    channel->bmiRegs.status.intStatus = 1;
+void
+IdeController::clearInterrupt(bool is_primary)
+{
+    auto &other = is_primary ? secondary : primary;
+    // If the interrupt isn't still needed by the other channel...
+    if (!other.pendingInterrupt())
+        PciEndpoint::intrClear();
 }
 
 Tick
@@ -163,7 +159,7 @@ IdeController::readConfig(PacketPtr pkt)
 {
     int offset = pkt->getAddr() & PCI_CONFIG_SIZE;
     if (offset < PCI_DEVICE_SPECIFIC)
-        return PciDevice::readConfig(pkt);
+        return PciEndpoint::readConfig(pkt);
 
     size_t size = pkt->getSize();
 
@@ -183,7 +179,7 @@ IdeController::writeConfig(PacketPtr pkt)
     int offset = pkt->getAddr() & PCI_CONFIG_SIZE;
 
     if (offset < PCI_DEVICE_SPECIFIC)
-        return PciDevice::writeConfig(pkt);
+        return PciEndpoint::writeConfig(pkt);
 
     size_t size = pkt->getSize();
 
@@ -206,13 +202,13 @@ IdeController::Channel::accessCommand(Addr offset,
     if (!read && offset == SelectOffset)
         select(*data & SelectDevBit);
 
-    if (selected == NULL) {
+    if (selected() == NULL) {
         assert(size == sizeof(uint8_t));
         *data = 0;
     } else if (read) {
-        selected->readCommand(offset, size, data);
+        selected()->readCommand(offset, size, data);
     } else {
-        selected->writeCommand(offset, size, data);
+        selected()->writeCommand(offset, size, data);
     }
 }
 
@@ -220,13 +216,13 @@ void
 IdeController::Channel::accessControl(Addr offset,
         int size, uint8_t *data, bool read)
 {
-    if (selected == NULL) {
+    if (selected() == NULL) {
         assert(size == sizeof(uint8_t));
         *data = 0;
     } else if (read) {
-        selected->readControl(offset, size, data);
+        selected()->readControl(offset, size, data);
     } else {
-        selected->writeControl(offset, size, data);
+        selected()->writeControl(offset, size, data);
     }
 }
 
@@ -252,19 +248,19 @@ IdeController::Channel::accessBMI(Addr offset,
                     oldVal.rw = newVal.rw;
 
                 if (oldVal.startStop != newVal.startStop) {
-                    if (selected == NULL)
+                    if (selected() == NULL)
                         panic("DMA start for disk which does not exist\n");
 
                     if (oldVal.startStop) {
                         DPRINTF(IdeCtrl, "Stopping DMA transfer\n");
                         bmiRegs.status.active = 0;
 
-                        selected->abortDma();
+                        selected()->abortDma();
                     } else {
                         DPRINTF(IdeCtrl, "Starting DMA transfer\n");
                         bmiRegs.status.active = 1;
 
-                        selected->startDma(letoh(bmiRegs.bmidtp));
+                        selected()->startDma(letoh(bmiRegs.bmidtp));
                     }
                 }
 
@@ -287,8 +283,8 @@ IdeController::Channel::accessBMI(Addr offset,
                     newVal.intStatus = 0; // clear the interrupt?
                 } else {
                     // Assigning two bitunion fields to each other does not
-                    // work as intended, so we need to use this temporary variable
-                    // to get around the bug.
+                    // work as intended, so we need to use this temporary
+                    // variable to get around the bug.
                     uint8_t tmp = oldVal.intStatus;
                     newVal.intStatus = tmp;
                 }
@@ -309,8 +305,9 @@ IdeController::Channel::accessBMI(Addr offset,
             break;
           default:
             if (size != sizeof(uint8_t) && size != sizeof(uint16_t) &&
-                    size != sizeof(uint32_t))
-                panic("IDE controller write of invalid write size: %x\n", size);
+                    size != sizeof(uint32_t)) {
+                panic("IDE controller write of invalid size: %x\n", size);
+            }
             memcpy((uint8_t *)&bmiRegs + offset, data, size);
         }
     }
@@ -350,7 +347,7 @@ IdeController::dispatchAccess(PacketPtr pkt, bool read)
         break;
       case 4:
         {
-            PciCommandRegister command = letoh(config.command);
+            PciCommandRegister command = letoh(config().command);
             if (!read && !command.busMaster)
                 return;
 
@@ -378,6 +375,14 @@ IdeController::dispatchAccess(PacketPtr pkt, bool read)
     pkt->makeAtomicResponse();
 }
 
+void
+IdeController::Channel::setDmaComplete()
+{
+    bmiRegs.command.startStop = 0;
+    bmiRegs.status.active = 0;
+    bmiRegs.status.intStatus = 1;
+}
+
 Tick
 IdeController::read(PacketPtr pkt)
 {
@@ -395,8 +400,8 @@ IdeController::write(PacketPtr pkt)
 void
 IdeController::serialize(CheckpointOut &cp) const
 {
-    // Serialize the PciDevice base class
-    PciDevice::serialize(cp);
+    // Serialize the PciEndpoint base class
+    PciEndpoint::serialize(cp);
 
     // Serialize channels
     primary.serialize("primary", cp);
@@ -423,8 +428,8 @@ IdeController::Channel::serialize(const std::string &base,
 void
 IdeController::unserialize(CheckpointIn &cp)
 {
-    // Unserialize the PciDevice base class
-    PciDevice::unserialize(cp);
+    // Unserialize the PciEndpoint base class
+    PciEndpoint::unserialize(cp);
 
     // Unserialize channels
     primary.unserialize("primary", cp);

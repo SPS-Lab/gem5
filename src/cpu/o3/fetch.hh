@@ -43,8 +43,8 @@
 
 #include "arch/generic/decoder.hh"
 #include "arch/generic/mmu.hh"
+#include "base/random.hh"
 #include "base/statistics.hh"
-#include "config/the_isa.hh"
 #include "cpu/o3/comm.hh"
 #include "cpu/o3/dyn_inst_ptr.hh"
 #include "cpu/o3/limits.hh"
@@ -61,7 +61,7 @@
 namespace gem5
 {
 
-struct O3CPUParams;
+struct BaseO3CPUParams;
 
 namespace o3
 {
@@ -202,9 +202,11 @@ class Fetch
     /** To probe when a fetch request is successfully sent. */
     ProbePointArg<RequestPtr> *ppFetchRequestSent;
 
+    Random::RandomPtr rng = Random::genRandom();
+
   public:
     /** Fetch constructor. */
-    Fetch(CPU *_cpu, const O3CPUParams &params);
+    Fetch(CPU *_cpu, const BaseO3CPUParams &params);
 
     /** Returns the name of fetch. */
     std::string name() const;
@@ -473,7 +475,7 @@ class Fetch
     ThreadID retryTid;
 
     /** Cache block size. */
-    unsigned int cacheBlkSize;
+    Addr cacheBlkSize;
 
     /** The size of the fetch buffer in bytes. The fetch buffer
      *  itself may be smaller than a cache line.
@@ -545,12 +547,6 @@ class Fetch
         FetchStatGroup(CPU *cpu, Fetch *fetch);
         // @todo: Consider making these
         // vectors and tracking on a per thread basis.
-        /** Stat for total number of cycles stalled due to an icache miss. */
-        statistics::Scalar icacheStallCycles;
-        /** Stat for total number of fetched instructions. */
-        statistics::Scalar insts;
-        /** Total number of fetched branches. */
-        statistics::Scalar branches;
         /** Stat for total number of predicted branches. */
         statistics::Scalar predictedBranches;
         /** Stat for total number of cycles spent fetching. */
@@ -593,10 +589,6 @@ class Fetch
         statistics::Distribution nisnDist;
         /** Rate of how often fetch was idle. */
         statistics::Formula idleRate;
-        /** Number of branch fetches per cycle. */
-        statistics::Formula branchRate;
-        /** Number of instruction fetched per cycle. */
-        statistics::Formula rate;
     } fetchStats;
 };
 
