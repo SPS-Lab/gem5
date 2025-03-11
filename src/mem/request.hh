@@ -1127,6 +1127,14 @@ class Request : public Extensible<Request>
     bool isCacheClean() const { return _flags.isSet(CLEAN); }
     bool isCacheInvalidate() const { return _flags.isSet(INVALIDATE); }
     bool isCacheMaintenance() const { return _flags.isSet(CLEAN|INVALIDATE); }
+
+    // Writebacks in the cache hierarchy
+    int writebacks[4] = {0, 0, 0, 0};
+    void incWriteback(int wb) {
+      assert(depth < 4);
+      writebacks[depth] += wb;
+    }
+    void clearAccessDepth() { depth = 0; }
     /** @} */
 
     void

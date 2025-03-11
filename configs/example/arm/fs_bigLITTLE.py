@@ -46,6 +46,14 @@ from m5.objects import *
 
 m5.util.addToPath("../../")
 
+
+from common import FSConfig
+from common import SysPaths
+from common import ObjectList
+from common import Options
+from common.cores.arm import ex5_big, ex5_LITTLE
+from common.cores.arm.O3_ARM_v7a import *
+
 import devices
 from common import (
     FSConfig,
@@ -87,26 +95,34 @@ def _using_pdes(root):
     return False
 
 
-class BigCluster(devices.ArmCpuCluster):
-    def __init__(self, system, num_cpus, cpu_clock, cpu_voltage="1.0V"):
-        cpu_config = [
-            ObjectList.cpu_list.get("O3_ARM_v7a_3"),
-            devices.L1I,
-            devices.L1D,
-            devices.L2,
-        ]
-        super().__init__(system, num_cpus, cpu_clock, cpu_voltage, *cpu_config)
 
-
-class LittleCluster(devices.ArmCpuCluster):
+class AtomicCacheCluster(devices.CpuCluster):
     def __init__(self, system, num_cpus, cpu_clock, cpu_voltage="1.0V"):
-        cpu_config = [
-            ObjectList.cpu_list.get("MinorCPU"),
-            devices.L1I,
-            devices.L1D,
-            devices.L2,
-        ]
-        super().__init__(system, num_cpus, cpu_clock, cpu_voltage, *cpu_config)
+        cpu_config = [ ObjectList.cpu_list.get("AtomicSimpleCPU"),
+            devices.L1I, devices.L1D, devices.WalkCache, devices.L2 ]
+        super(AtomicCacheCluster, self).__init__(system, num_cpus, cpu_clock,
+                                                 cpu_voltage, *cpu_config)
+        for cpu in self.cpus:
+            cpu.branchPred = O3_ARM_v7a_BP()
+
+class PostkCluster(devices.CpuCluster):
+    def __init__(self, system, num_cpus, cpu_clock,
+                 cpu_voltage="1.0V"):
+        import common.cores.arm.O3_PostK as core
+        cpu_config = [ ObjectList.cpu_list.get("O3_ARM_PostK_3"),
+            core.O3_ARM_PostK_ICache, core.O3_ARM_PostK_DCache,
+            core.O3_ARM_PostK_WalkCache, core.O3_ARM_PostK_L2 ]
+        super(PostkCluster, self).__init__(system, num_cpus, cpu_clock,
+                                           cpu_voltage, *cpu_config)
+
+class BigCluster(devices.CpuCluster):
+    def __init__(self, system, num_cpus, cpu_clock,
+                 cpu_voltage="1.0V"):
+        cpu_config = [ ObjectList.cpu_list.get("O3_ARM_v7a_3"),
+            devices.L1I, devices.L1D, devices.L2 ]
+        super(BigCluster, self).__init__(system, num_cpus, cpu_clock,
+                                         cpu_voltage, *cpu_config)
+
 
 
 class Ex5BigCluster(devices.CpuCluster):
@@ -179,9 +195,13 @@ def createSystem(
 
 
 cpu_types = {
-    "atomic": (AtomicCluster, AtomicCluster),
-    "timing": (BigCluster, LittleCluster),
-    "exynos": (Ex5BigCluster, Ex5LittleCluster),
+
+    "atomic" : (AtomicCluster, AtomicCluster),
+    "ac"     : (AtomicCacheCluster, AtomicCacheCluster),
+    "timing" : (BigCluster, LittleCluster),
+    "exynos" : (Ex5BigCluster, Ex5LittleCluster),
+    "postk"  : (PostkCluster, LittleCluster),
+
 }
 
 # Only add the KVM CPU if it has been compiled into gem5
@@ -311,21 +331,26 @@ def addOptions(parser):
         action="append",
         default=[],
         help="Set a SimObject parameter relative to the root node. "
-        "An extended Python multi range slicing syntax can be used "
-        "for arrays. For example: "
-        "'system.cpu[0,1,3:8:2].max_insts_all_threads = 42' "
-        "sets max_insts_all_threads for cpus 0, 1, 3, 5 and 7 "
-        "Direct parameters of the root object are not accessible, "
-        "only parameters of its children.",
-    )
-    parser.add_argument(
-        "--vio-9p", action="store_true", help=Options.vio_9p_help
-    )
-    parser.add_argument(
-        "--dtb-gen",
-        action="store_true",
-        help="Doesn't run simulation, it generates a DTB only",
-    )
+
+             "An extended Python multi range slicing syntax can be used "
+             "for arrays. For example: "
+             "'system.cpu[0,1,3:8:2].max_insts_all_threads = 42' "
+             "sets max_insts_all_threads for cpus 0, 1, 3, 5 and 7 "
+             "Direct parameters of the root object are not accessible, "
+             "only parameters of its children.")
+    parser.add_argument("--vio-9p", action="store_true",
+                        help=Options.vio_9p_help)
+    parser.add_argument("--dtb-gen", action="store_true",
+                        help="Doesn't run simulation, it generates a DTB only")
+    parser.add_argument("--maxinsts", type=int, default=0, help="Total " \
+                        "number of instructions to simulate")
+    parser.add_argument("--simpoint-profile", action="store_true",
+                        help="Enable basic block profiling for SimPoints")
+    parser.add_argument("--simpoint-interval", type=int, default=10000000,
+                        help="SimPoint interval in num of instructions")
+    parser.add_argument("--checkpoint-at-end", action="store_true",
+                        help="take a checkpoint at end of run")
+
     return parser
 
 
@@ -378,6 +403,14 @@ def build(options):
         )
         system.mem_mode = system.bigCluster.memory_mode()
         all_cpus += system.bigCluster.cpus
+        if options.maxinsts:
+            for i in range(options.big_cpus):
+                system.bigCluster.cpus[i].max_insts_all_threads = \
+                    options.maxinsts
+        if options.simpoint_profile:
+            for i in range(options.big_cpus):
+                system.bigCluster.cpus[i].addSimPointProbe(
+                    options.simpoint_interval)
 
     # little cluster
     if options.little_cpus > 0:
@@ -386,6 +419,10 @@ def build(options):
         )
         system.mem_mode = system.littleCluster.memory_mode()
         all_cpus += system.littleCluster.cpus
+        if options.maxinsts:
+            for i in range(options.little_cpus):
+                system.littleCluster.cpus[i].max_insts_all_threads = \
+                    options.maxinsts
 
     # Figure out the memory mode
     if (
@@ -487,7 +524,7 @@ def instantiate(options, checkpoint_dir=None):
         m5.instantiate()
 
 
-def run(checkpoint_dir=m5.options.outdir):
+def run(options, checkpoint_dir=m5.options.outdir):
     # start simulation (and drop checkpoints when requested)
     while True:
         event = m5.simulate()
@@ -500,6 +537,11 @@ def run(checkpoint_dir=m5.options.outdir):
         else:
             print(exit_msg, " @ ", m5.curTick())
             break
+
+    if options.checkpoint_at_end:
+        print("Dropping checkpoint at the end tick %d" % m5.curTick())
+        m5.checkpoint(os.path.join(checkpoint_dir, "cpt"))
+        print("Checkpoint done.")
 
     sys.exit(event.getCode())
 
@@ -520,7 +562,9 @@ def main():
     if options.dtb_gen:
         generateDtb(root)
     else:
-        run()
+
+      run(options)
+
 
 
 if __name__ == "__m5_main__":

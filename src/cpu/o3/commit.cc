@@ -130,6 +130,12 @@ Commit::Commit(CPU *_cpu, const BaseO3CPUParams &params)
         htmStops[tid] = 0;
     }
     interrupt = NoFault;
+
+    // Open file trace.txt in write mode.
+    tptr = fopen("trace.txt", "w");
+    if (tptr == NULL)
+        printf("Could not open trace file.\n");
+    numPhaseInsts = 0;
 }
 
 std::string Commit::name() const { return cpu->name() + ".commit"; }
@@ -1062,6 +1068,18 @@ Commit::commitInsts()
                                       head_inst->isLastMicroop() ||
                                       !head_inst->isDelayedCommit();
 
+#ifdef PHASE_DUMP
+                if (numPhaseInsts >= PHASE_SIZE && onInstBoundary) {
+                    //printf("Commit squash %lu\n", curTick());
+                    fprintf(tptr, "-99 %lu\n", curTick());
+                    assert(pc[tid].microPC() == 0 && interrupt == NoFault &&
+                           !thread[tid]->trapPending);
+                    squashAfter(tid, head_inst);
+                    cpu->phaseSquash = true;
+                    numPhaseInsts = 0;
+                }
+#endif
+
                 if (onInstBoundary) {
                     int count = 0;
                     Addr oldpc;
@@ -1247,6 +1265,9 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
 
         // Generate trap squash event.
         generateTrapEvent(tid, inst_fault);
+
+        head_inst->commitTick = curTick() - head_inst->fetchTick;
+        head_inst->dumpInst(tptr, true);
         return false;
     }
 
@@ -1283,9 +1304,14 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
     rob->retireHead(tid);
 
 #if TRACING_ON
-    if (debug::O3PipeView) {
-        head_inst->commitTick = curTick() - head_inst->fetchTick;
-    }
+    //if (debug::O3PipeView) {
+    //    head_inst->commitTick = curTick() - head_inst->fetchTick;
+    //}
+    head_inst->commitTick = curTick() - head_inst->fetchTick;
+#endif
+    head_inst->dumpInst(tptr, false);
+#ifdef PHASE_DUMP
+    numPhaseInsts++;
 #endif
 
     // If this was a store, record it for this cycle.

@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2017, 2022-2024 Arm Limited
+# Copyright (c) 2016-2017 ARM Limited
 # All rights reserved.
 #
 # The license below extends only to copyright in the software and shall
@@ -38,66 +38,30 @@ Research Starter Kit on System Modeling. More information can be found
 at: http://www.arm.com/ResearchEnablement/SystemModeling
 """
 
-import argparse
 import os
+import m5
+from m5.util import addToPath
+from m5.objects import *
+import argparse
 import shlex
 
-import m5
-from m5.objects import *
-from m5.util import addToPath
-
+m5.util.addToPath('../..')
 
 from common import ObjectList
 from common import MemConfig
-from common.cores.arm import HPI
-from common.cores.arm.O3_ARM_v7a import *
-import common.cores.arm.O3_PostK as PostK
-import common.cores.arm.ex5_big as ex5_big
-import common.cores.arm.ex5_LITTLE as ex5_LITTLE
 
 import devices
-from cfg_generater import generate_configs
 
-
-
-m5.util.addToPath("../..")
-
-import devices
-from common import (
-    MemConfig,
-    ObjectList,
-)
-from common.cores.arm import (
-    HPI,
-    O3_ARM_v7a,
-)
 
 
 # Pre-defined CPU configurations. Each tuple must be ordered as : (cpu_class,
-# l1_icache_class, l1_dcache_class, l2_Cache_class). Any of
+# l1_icache_class, l1_dcache_class, walk_cache_class, l2_Cache_class). Any of
 # the cache class may be 'None' if the particular cache is not present.
 cpu_types = {
-
     "atomic" : ( AtomicSimpleCPU, None, None, None),
     "minor" : (MinorCPU,
                devices.L1I, devices.L1D,
                devices.L2),
-    "hpi" : ( HPI.HPI,
-              HPI.HPI_ICache, HPI.HPI_DCache,
-              HPI.HPI_L2),
-    "ac" : (AtomicSimpleCPU,
-            devices.L1I, devices.L1D, devices.L2),
-    "o3" : (O3CPU,
-            devices.L1I, devices.L1D, devices.L2),
-    "timing" : (ObjectList.cpu_list.get("O3_ARM_v7a_3"),
-            devices.L1I, devices.L1D, devices.L2),
-    "ex5" : (ObjectList.cpu_list.get("ex5_big"),
-            ex5_big.L1I, ex5_big.L1D, ex5_big.L2),
-    "ex5l" : (ObjectList.cpu_list.get("ex5_LITTLE"),
-            ex5_LITTLE.L1I, ex5_LITTLE.L1D, ex5_LITTLE.L2),
-    "pk" : (ObjectList.cpu_list.get("O3_ARM_PostK_3"),
-            PostK.O3_ARM_PostK_ICache, PostK.O3_ARM_PostK_DCache,
-            PostK.O3_ARM_PostK_L2)
 }
 
 
@@ -143,22 +107,7 @@ class SimpleSeSystem(System):
         if self.cpu_cluster.memoryMode() == "timing":
             self.cpu_cluster.addL1()
             self.cpu_cluster.addL2(self.cpu_cluster.clk_domain)
-        elif args.cpu == "ac":
-            self.cpu_cluster.addL1()
-            self.cpu_cluster.addL2(self.cpu_cluster.clk_domain)
-            for i in range(args.num_cores):
-                self.cpu_cluster.cpus[i].branchPred = O3_ARM_v7a_BP()
         self.cpu_cluster.connectMemSide(self.membus)
-
-        if args.maxinsts:
-            for i in range(args.num_cores):
-                self.cpu_cluster.cpus[i].max_insts_all_threads = \
-                    args.maxinsts
-
-        if args.simpoint_profile:
-            for i in range(args.num_cores):
-                self.cpu_cluster.cpus[i].addSimPointProbe(
-                    args.simpoint_interval)
 
         # Tell gem5 about the memory mode used by the CPUs we are
         # simulating.
@@ -175,7 +124,6 @@ class SimpleSeSystem(System):
 
     def numCpus(self):
         return self._num_cpus
-
 
 def get_processes(cmd):
     """Interprets commands to run and returns a list of processes"""
@@ -195,49 +143,24 @@ def get_processes(cmd):
 
 
 def create(args):
-
     ''' Create and configure the system object. '''
 
-    if args.l1d_size != "":
-        devices.L1D.size = args.l1d_size
-    if args.l1i_size != "":
-        devices.L1I.size = args.l1i_size
-    if args.l2_size != "":
-        if args.l2_size == "0":
-            cpu_types[args.cpu] = (cpu_types[args.cpu][0],
-                                   cpu_types[args.cpu][1],
-                                   cpu_types[args.cpu][2], None)
-        else:
-            devices.L2.size = args.l2_size
-    if args.random > 0:
-        args, branchPred = generate_configs(args, args.random - 1)
-
     system = SimpleSeSystem(args)
-
-
-    if args.random > 0:
-        for i in range(args.num_cores):
-            system.cpu_cluster.cpus[i].branchPred = branchPred()
 
     # Tell components about the expected physical memory ranges. This
     # is, for example, used by the MemConfig helper to determine where
     # to map DRAMs in the physical address space.
-    system.mem_ranges = [AddrRange(start=0, size=args.mem_size)]
+    system.mem_ranges = [ AddrRange(start=0, size=args.mem_size) ]
 
     # Configure the off-chip memory system.
     MemConfig.config_mem(args, system)
-
-    # Wire up the system's memory system
-    system.connect()
 
     # Parse the command line and get a list of Processes instances
     # that we can pass to gem5.
     processes = get_processes(args.commands_to_run)
     if len(processes) != args.num_cores:
-        print(
-            "Error: Cannot map %d command(s) onto %d CPU(s)"
-            % (len(processes), args.num_cores)
-        )
+        print("Error: Cannot map %d command(s) onto %d CPU(s)" %
+              (len(processes), args.num_cores))
         sys.exit(1)
 
     system.workload = SEWorkload.init_compatible(processes[0].executable)
@@ -252,16 +175,15 @@ def create(args):
 def main():
     parser = argparse.ArgumentParser(epilog=__doc__)
 
-
     parser.add_argument("commands_to_run", metavar="command(s)", nargs='*',
                         help="Command(s) to run")
     parser.add_argument("--cpu", type=str, choices=list(cpu_types.keys()),
                         default="atomic",
                         help="CPU model to use")
-    parser.add_argument("--cpu-freq", type=str, default="2GHz")
+    parser.add_argument("--cpu-freq", type=str, default="4GHz")
     parser.add_argument("--num-cores", type=int, default=1,
                         help="Number of CPU cores")
-    parser.add_argument("--mem-type", default="DDR4_2400_16x4",
+    parser.add_argument("--mem-type", default="DDR3_1600_8x8",
                         choices=ObjectList.mem_list.get_names(),
                         help = "type of memory to use")
     parser.add_argument("--mem-channels", type=int, default=2,
@@ -271,21 +193,6 @@ def main():
     parser.add_argument("--mem-size", action="store", type=str,
                         default="2GB",
                         help="Specify the physical memory size")
-    parser.add_argument("--l1d_size", type=str, default="")
-    parser.add_argument("--l1i_size", type=str, default="")
-    parser.add_argument("--l2_size", type=str, default="")
-    parser.add_argument("--maxinsts", type=int, default=0, help="Total " \
-                        "number of instructions to simulate")
-    parser.add_argument("--simpoint-profile", action="store_true",
-                        help="Enable basic block profiling for SimPoints")
-    parser.add_argument("--simpoint-interval", type=int, default=10000000,
-                        help="SimPoint interval in num of instructions")
-    parser.add_argument("--checkpoint-at-end", action="store_true",
-                        help="take a checkpoint at end of run")
-    parser.add_argument("--restore", type=str, default=None)
-    parser.add_argument("--random", "-r", type=int, default=0,
-                        help="Random number for configurations")
-
 
     args = parser.parse_args()
 
@@ -298,27 +205,21 @@ def main():
     # Populate the root node with a system. A system corresponds to a
     # single node with shared memory.
     root.system = create(args)
-    root.apply_config(args.param)
 
     # Instantiate the C++ object hierarchy. After this point,
     # SimObjects can't be instantiated anymore.
-    if args.restore is not None:
-        m5.instantiate(args.restore)
-    else:
-        m5.instantiate()
+    m5.instantiate()
 
     # Start the simulator. This gives control to the C++ world and
     # starts the simulator. The returned event tells the simulation
     # script why the simulator exited.
     event = m5.simulate()
 
-    if args.checkpoint_at_end:
-        m5.checkpoint(os.path.join(m5.options.outdir, "cpt.%d" % m5.curTick()))
-
     # Print the reason for the simulation exit. Some exit codes are
     # requests for service (e.g., checkpoints) from the simulation
     # script. We'll just ignore them here and exit.
-    print(f"{event.getCause()} ({event.getCode()}) @ {m5.curTick()}")
+    print(event.getCause(), " @ ", m5.curTick())
+    sys.exit(event.getCode())
 
 
 if __name__ == "__m5_main__":

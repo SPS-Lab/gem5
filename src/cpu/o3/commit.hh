@@ -221,6 +221,9 @@ class Commit
      */
     void generateTCEvent(ThreadID tid);
 
+    /** Trace file. */
+    FILE *tptr;
+
   private:
     /** Updates the overall status of commit with the nextStatus, and
      * tell the CPU if commit is active/inactive.
@@ -491,6 +494,9 @@ class Commit
         /** Number of cycles where the commit bandwidth limit is reached. */
         statistics::Scalar commitEligibleSamples;
     } stats;
+
+    // Number of committed instructions in this phase
+    int numPhaseInsts;
 };
 
 } // namespace o3

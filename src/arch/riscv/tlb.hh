@@ -135,7 +135,8 @@ class TLB : public BaseTLB
                                 BaseMMU::Mode mode);
 
     Fault translateAtomic(const RequestPtr &req,
-                          ThreadContext *tc, BaseMMU::Mode mode) override;
+                          ThreadContext *tc, BaseMMU::Mode mode,
+                          int *depths = NULL, Addr *addrs = NULL) override;
     void translateTiming(const RequestPtr &req, ThreadContext *tc,
                          BaseMMU::Translation *translation,
                          BaseMMU::Mode mode) override;

@@ -824,6 +824,7 @@ Rename::sortInsts()
         if (debug::O3PipeView) {
             inst->renameTick = curTick() - inst->fetchTick;
         }
+        inst->renameTick = curTick() - inst->fetchTick;
 #endif
     }
 }

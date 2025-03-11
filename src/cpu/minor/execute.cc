@@ -192,6 +192,11 @@ Execute::Execute(const std::string &name_,
             ReportTraitsAdaptor<QueuedInst> >(
             name_ + ".inFUMemInsts" + tid_str, "insts", total_slots);
     }
+
+    // Open file trace.txt in write mode.
+    tptr = fopen("trace.txt", "w");
+    if (tptr == NULL)
+        printf("Could not open trace file.\n");
 }
 
 const ForwardInstData *
@@ -337,6 +342,10 @@ Execute::handleMemResponse(MinorDynInstPtr inst,
     bool is_atomic = inst->staticInst->isAtomic();
     bool is_prefetch = inst->staticInst->isDataPrefetch();
 
+    // Give an index for stores that do not go to store buffer.
+    if (is_store)
+      inst->sqIdx = 0;
+
     /* If true, the trace's predicate value will be taken from the exec
      *  context predicate, otherwise, it will be set to false */
     bool use_context_predicate = true;
@@ -383,6 +392,12 @@ Execute::handleMemResponse(MinorDynInstPtr inst,
         fault = inst->staticInst->completeAcc(packet, &context,
             inst->traceData);
 
+        if (!response->needsToBeSentToStoreBuffer()) {
+          inst->cachedepth = packet->req->getAccessDepth();
+          for (int i = 0; i < 4; i++)
+            inst->dWritebacks[i] = packet->req->writebacks[i];
+        }
+
         if (fault != NoFault) {
             /* Invoke fault created by instruction completion */
             DPRINTF(MinorMem, "Fault in memory completeAcc: %s\n",
@@ -406,7 +421,7 @@ Execute::handleMemResponse(MinorDynInstPtr inst,
             context.readPredicate() : false));
     }
 
-    doInstCommitAccounting(inst);
+    doInstCommitAccounting(inst, fault);
 
     /* Generate output to account for branches */
     tryToBranch(inst, fault, branch);
@@ -806,6 +821,8 @@ Execute::issue(ThreadID thread_id)
             thread.inputIndex++;
             DPRINTF(MinorExecute, "Stepping to next inst inputIndex: %d\n",
                 thread.inputIndex);
+
+            inst->issueTick = curTick() - inst->fetchTick;
         }
 
         /* Got to the end of a line */
@@ -853,7 +870,7 @@ Execute::tryPCEvents(ThreadID thread_id)
 }
 
 void
-Execute::doInstCommitAccounting(MinorDynInstPtr inst)
+Execute::doInstCommitAccounting(MinorDynInstPtr inst, Fault fault)
 {
     assert(!inst->isFault());
 
@@ -876,6 +893,22 @@ Execute::doInstCommitAccounting(MinorDynInstPtr inst)
     cpu.commitStats[inst->id.threadId]->numOps++;
     cpu.commitStats[inst->id.threadId]
         ->committedInstType[inst->staticInst->opClass()]++;
+
+    inst->commitTick = curTick() - inst->fetchTick;
+    ThreadContext *threadc = cpu.getContext(inst->id.threadId);
+    std::unique_ptr<PCStateBase> target(threadc->pcState().clone());
+    bool must_branch = target->branching();
+    inst->taken = must_branch;
+    if (inst->triedToPredict) {
+      if (!must_branch && inst->predictedTaken)
+        inst->mispred = true;
+      else if (must_branch && !inst->predictedTaken)
+        inst->mispred = true;
+      else if (must_branch && inst->predictedTaken &&
+               target->npc() != inst->predictedTarget->instAddr())
+        inst->mispred = true;
+    }
+    inst->dumpInst(tptr, fault != NoFault);
 
     /* Set the CP SeqNum to the numOps commit number */
     if (inst->traceData)
@@ -992,7 +1025,7 @@ Execute::commitInst(MinorDynInstPtr inst, bool early_memory_issue,
             fault->invoke(thread, inst->staticInst);
         }
 
-        doInstCommitAccounting(inst);
+        doInstCommitAccounting(inst, fault);
         tryToBranch(inst, fault, branch);
     }
 

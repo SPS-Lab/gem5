@@ -142,6 +142,8 @@ Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
 
     // Get the size of an instruction.
     instSize = decoder[0]->moreBytesSize();
+
+    phaseSquash = false;
 }
 
 std::string Fetch::name() const { return cpu->name() + ".fetch"; }
@@ -367,6 +369,7 @@ Fetch::processCacheCompletion(PacketPtr pkt)
 
     pkt->req->setAccessLatency();
     cpu->ppInstAccessComplete->notify(pkt);
+    depth = pkt->req->getAccessDepth();
     // Reset the mem req to NULL.
     delete pkt;
     memReq[tid] = NULL;
@@ -582,10 +585,18 @@ Fetch::fetchCacheLine(Addr vaddr, ThreadID tid, Addr pc)
 }
 
 void
-Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
+Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req,
+                         int *depths, Addr *addrs)
 {
     ThreadID tid = cpu->contextToThread(mem_req->contextId());
     Addr fetchBufferBlockPC = mem_req->getVaddr();
+    if (depths) {
+      assert(addrs);
+      for (int i = 0; i < 4; i++) {
+        walkDepth[i] = depths[i];
+        walkAddr[i] = addrs[i];
+      }
+    }
 
     assert(!cpu->switchedOut());
 
@@ -714,6 +725,8 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
                 tid);
         memReq[tid] = NULL;
     }
+    assert(!phaseSquash || memReq[tid] == NULL ||
+           fetchStatus[tid] == IcacheWaitRetry);
 
     // Get rid of the retrying packet if it was from this thread.
     if (retryTid == tid) {
@@ -738,6 +751,18 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
     delayedCommit[tid] = true;
 
     ++fetchStats.squashCycles;
+
+    if (phaseSquash) {
+        macroop[tid] = NULL;
+
+        delayedCommit[tid] = false;
+        memReq[tid] = NULL;
+
+        assert(!stalls[tid].drain);
+
+        fetchBufferPC[tid] = 0;
+        fetchBufferValid[tid] = false;
+    }
 }
 
 void
@@ -937,6 +962,11 @@ Fetch::checkSignalsAndUpdate(ThreadID tid)
     // Check squash signals from commit.
     if (fromCommit->commitInfo[tid].squash) {
 
+        if (cpu->phaseSquash) {
+            //printf("fetch squash from commit %lu\n", curTick());
+            phaseSquash = true;
+            cpu->phaseSquash = false;
+        }
         DPRINTF(Fetch, "[tid:%i] Squashing instructions due to squash "
                 "from commit.\n",tid);
         // In any case, squash.
@@ -1097,6 +1127,10 @@ Fetch::fetch(bool &status_change)
     }
 
     DPRINTF(Fetch, "Attempting to fetch from [tid:%i]\n", tid);
+    if (phaseSquash) {
+        //printf("fetch starts at %lu\n", curTick());
+        phaseSquash = false;
+    }
 
     // The current PC.
     PCStateBase &this_pc = *pc[tid];
@@ -1264,7 +1298,24 @@ Fetch::fetch(bool &status_change)
             if (debug::O3PipeView) {
                 instruction->fetchTick = curTick();
             }
+            instruction->fetchTick = curTick();
 #endif
+            if (status_change && numInst == 1) {
+              // Return from icache access.
+              instruction->fetchdepth = depth;
+              for (int i = 0; i < 4; i++) {
+                instruction->iwalkDepth[i] = walkDepth[i];
+                instruction->iwalkAddr[i] = walkAddr[i];
+              }
+              for (int i = 0; i < 4; i++)
+                instruction->iWritebacks[i] = writebacks[i];
+            } else {
+              instruction->fetchdepth = -1;
+              for (int i = 0; i < 4; i++) {
+                instruction->iwalkDepth[i] = -1;
+                instruction->iwalkAddr[i] = 0;
+              }
+            }
 
             set(next_pc, this_pc);
 

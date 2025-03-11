@@ -140,6 +140,10 @@ class DynInst : public ExecContext, public RefCounted
     /** InstRecord that tracks this instructions. */
     trace::InstRecord *traceData = nullptr;
 
+    // For instruction tracing.
+    Tick in_rob_tick;
+    Tick out_rob_tick;
+
   protected:
     enum Status
     {
@@ -324,6 +328,10 @@ class DynInst : public ExecContext, public RefCounted
     ////////////////////// Branch Data ///////////////
     /** Predicted PC state after this instruction. */
     std::unique_ptr<PCStateBase> predPC;
+
+    /** Predicted PC state in the fetch stage after this instruction. */
+    std::unique_ptr<PCStateBase> fetchPredPC;
+
 
     /** The Macroop if one exists */
     const StaticInstPtr macroop;
@@ -513,7 +521,11 @@ class DynInst : public ExecContext, public RefCounted
     bool doneTargCalc() { return false; }
 
     /** Set the predicted target of this current instruction. */
-    void setPredTarg(const PCStateBase &pred_pc) { set(predPC, pred_pc); }
+    void setPredTarg(const PCStateBase &pred_pc, bool is_fetch = true) {
+      set(predPC, pred_pc);
+      if (is_fetch)
+        set(fetchPredPC, pred_pc);
+    }
 
     const PCStateBase &readPredTarg() { return *predPC; }
 
@@ -533,6 +545,17 @@ class DynInst : public ExecContext, public RefCounted
         std::unique_ptr<PCStateBase> next_pc(pc->clone());
         staticInst->advancePC(*next_pc);
         return *next_pc != *predPC;
+    }
+
+    /** Returns the fetch predicted PC immediately after the branch. */
+    Addr fetchPredInstAddr() { return fetchPredPC->instAddr(); }
+
+    /** Returns whether the instruction mispredicted during fetch. */
+    bool fetchMispredicted()
+    {
+        std::unique_ptr<PCStateBase> next_pc(pc->clone());
+        staticInst->advancePC(*next_pc);
+        return *next_pc != *fetchPredPC;
     }
 
     //
@@ -766,7 +789,10 @@ class DynInst : public ExecContext, public RefCounted
     bool isExecuted() const { return status[Executed]; }
 
     /** Sets this instruction as ready to commit. */
-    void setCanCommit() { status.set(CanCommit); }
+    void setCanCommit() {
+      status.set(CanCommit);
+      out_rob_tick = curTick();
+    }
 
     /** Clears this instruction as being ready to commit. */
     void clearCanCommit() { status.reset(CanCommit); }
@@ -1008,6 +1034,19 @@ class DynInst : public ExecContext, public RefCounted
     int32_t commitTick = -1;
     int32_t storeTick = -1;
 #endif
+
+    // For instruction tracing.
+    int cachedepth = -1;
+    int fetchdepth = -1;
+    int iwalkDepth[4] = {-1, -1, -1, -1};
+    int dwalkDepth[4] = {-1, -1, -1, -1};
+    Addr iwalkAddr[4] = {0, 0, 0, 0};
+    Addr dwalkAddr[4] = {0, 0, 0, 0};
+    int iWritebacks[4] = {0, 0, 0, 0};
+    int dWritebacks[4] = {0, 0, 0, 0};
+
+    // Dump an instruction.
+    void dumpInst(FILE *tptr, bool isFault, bool FromSQ = false);
 
     /* Values used by LoadToUse stat */
     Tick firstIssue = -1;

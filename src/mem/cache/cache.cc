@@ -186,9 +186,10 @@ Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
     return BaseCache::access(pkt, blk, lat, writebacks);
 }
 
-void
+int
 Cache::doWritebacks(PacketList& writebacks, Tick forward_time)
 {
+    int wbCount = 0;
     while (!writebacks.empty()) {
         PacketPtr wbPkt = writebacks.front();
         // We use forwardLatency here because we are copying writebacks to
@@ -216,6 +217,7 @@ Cache::doWritebacks(PacketList& writebacks, Tick forward_time)
                 // address in the snoop filter below.
                 wbPkt->setBlockCached();
                 allocateWriteBuffer(wbPkt, forward_time);
+                wbCount++;
             }
         } else {
             // If the block is not cached above, send packet below. Both
@@ -223,14 +225,17 @@ Cache::doWritebacks(PacketList& writebacks, Tick forward_time)
             // reset the bit corresponding to this address in the snoop filter
             // below.
             allocateWriteBuffer(wbPkt, forward_time);
+            wbCount++;
         }
         writebacks.pop_front();
     }
+    return wbCount;
 }
 
-void
+int
 Cache::doWritebacksAtomic(PacketList& writebacks)
 {
+    int wbCount = 0;
     while (!writebacks.empty()) {
         PacketPtr wbPkt = writebacks.front();
         // Call isCachedAbove for both Writebacks and CleanEvicts. If
@@ -246,6 +251,7 @@ Cache::doWritebacksAtomic(PacketList& writebacks)
                 // copies exist above. Atomic mode isCachedAbove
                 // modifies packet to set BLOCK_CACHED flag
                 memSidePort.sendAtomic(wbPkt);
+                wbCount++;
             }
         } else {
             // If the block is not cached above, send packet below. Both
@@ -253,6 +259,7 @@ Cache::doWritebacksAtomic(PacketList& writebacks)
             // reset the bit corresponding to this address in the snoop filter
             // below.
             memSidePort.sendAtomic(wbPkt);
+            wbCount++;
         }
         writebacks.pop_front();
         // In case of CleanEvicts, the packet destructor will delete the
@@ -260,6 +267,7 @@ Cache::doWritebacksAtomic(PacketList& writebacks)
         // does not require a response.
         delete wbPkt;
     }
+    return wbCount;
 }
 
 
@@ -417,6 +425,28 @@ Cache::handleTimingReqMiss(PacketPtr pkt, CacheBlk *blk, Tick forward_time,
 void
 Cache::recvTimingReq(PacketPtr pkt)
 {
+//#define PERFECT_CACHE
+#if defined(PERFECT_CACHE)
+    //if (name().find("icache") != string::npos ||
+    //    name().find("walker_cache") != string::npos) {
+      //std::cout << name() << "\n";
+      if (pkt->needsResponse()) {
+        // std::cout << "pkt " << pkt->print() << "\n";
+        if (pkt->isLLSC() && pkt->isWrite()) {
+          functionalAccess(pkt, true);
+          pkt->req->setExtraData(1);
+        } else if (pkt->isClean()) {
+          pkt->makeTimingResponse();
+        } else
+          functionalAccess(pkt, true);
+        // pkt->makeTimingResponse();
+        Tick request_time = clockEdge(lookupLatency) + pkt->headerDelay;
+        pkt->headerDelay = pkt->payloadDelay = 0;
+        cpuSidePort.schedTimingResp(pkt, request_time);
+      }
+      return;
+    //}
+#endif
     DPRINTF(CacheTags, "%s tags:\n%s\n", __func__, tags->print());
 
     promoteWholeLineWrites(pkt);
@@ -1125,15 +1155,17 @@ Cache::handleSnoop(PacketPtr pkt, CacheBlk *blk, bool is_timing,
             PacketList writebacks;
             writebacks.push_back(wb_pkt);
 
+            int wb;
             if (is_timing) {
                 // anything that is merely forwarded pays for the forward
                 // latency and the delay provided by the crossbar
                 Tick forward_time = clockEdge(forwardLatency) +
                     pkt->headerDelay;
-                doWritebacks(writebacks, forward_time);
+                wb = doWritebacks(writebacks, forward_time);
             } else {
-                doWritebacksAtomic(writebacks);
+                wb = doWritebacksAtomic(writebacks);
             }
+            pkt->req->incWriteback(wb);
             pkt->setSatisfied();
         }
     } else if (!blk_valid) {

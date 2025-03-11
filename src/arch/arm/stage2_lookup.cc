@@ -186,7 +186,7 @@ Stage2LookUp::mergeTe(BaseMMU::Mode mode)
 
 void
 Stage2LookUp::finish(const Fault &_fault, const RequestPtr &req,
-    ThreadContext *tc, BaseMMU::Mode mode)
+    ThreadContext *tc, BaseMMU::Mode mode, int *depths, Addr *addrs)
 {
     fault = _fault;
     // if we haven't got the table entry get it now

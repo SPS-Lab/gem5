@@ -224,6 +224,82 @@ MinorDynInst::minorTraceInst(const Named &named_object) const
     }
 }
 
+void MinorDynInst::dumpInst(FILE *tptr, bool isFault, bool FromSQ) {
+  assert(FromSQ || sqIdx == -1 || staticInst->isAtomic() ||
+         staticInst->isStoreConditional() || cachedepth == -1);
+  assert(!FromSQ || sqIdx != -1);
+  //assert(!FromSQ || (!staticInst->isStoreConditional() && !staticInst->isAtomic()));
+  if (sqIdx >= 0)
+    assert(staticInst->isStore() || staticInst->isAtomic());
+  else
+    assert(!staticInst->isStore() && !staticInst->isAtomic());
+  assert(!dumped);
+
+  fprintf(tptr, "%d ", isFault);
+  //if (staticInst->isStore() || staticInst->isStoreConditional() || staticInst->isAtomic())
+  //  fprintf(tptr, "0 ");
+  //else
+  //  fprintf(tptr, "-1 ");
+  fprintf(tptr, "%ld ", sqIdx);
+  fprintf(tptr, "%lu %d %d", fetchTick, commitTick, commitTick);
+  fprintf(tptr, " %d %d %d %d", decodeTick, decodeTick, issueTick,
+          issueTick);
+  //if (staticInst->isStore() || staticInst->isStoreConditional() || staticInst->isAtomic())
+  //  fprintf(tptr, " %d %d", commitTick, commitTick);
+  //else
+  //  fprintf(tptr, " 0 0");
+  if (FromSQ)
+    fprintf(tptr, " %d %lu", storeTick, curTick() - fetchTick);
+  else if ((staticInst->isStoreConditional() || staticInst->isAtomic()) &&
+           !staticInst->isFullMemBarrier()) {
+    assert(sqIdx == 0 && !isFault);
+    fprintf(tptr, " %d %d", storeTick, storeTick);
+  } else if (sqIdx != -1 && !isFault) {
+    fprintf(tptr, "\n");
+    return;
+  }
+  dumped = true;
+  fprintf(tptr, " %d %d %d %d %d %d %d %d ", staticInst->opClass(), staticInst->isMicroop(),
+          staticInst->isCondCtrl(), staticInst->isUncondCtrl(), staticInst->isDirectCtrl(),
+          staticInst->isSquashAfter(), staticInst->isSerializeAfter(),
+          staticInst->isSerializeBefore());
+  fprintf(tptr, "%d %d %d %d %d %d ", staticInst->isAtomic(),
+          staticInst->isStoreConditional(), staticInst->isReadBarrier(),
+          staticInst->isWriteBarrier(), staticInst->isQuiesce(), staticInst->isNonSpeculative());
+
+  fprintf(tptr, " %d %lu %lu %d", mem_valid,
+          mem_valid ? addr : 0, mem_valid ? size : 0, cachedepth);
+  for (int i = 1; i < 4; i++)
+    fprintf(tptr, " %d", dwalkDepth[i]);
+  for (int i = 1; i < 4; i++)
+    fprintf(tptr, " %lu", dwalkAddr[i]);
+  assert(dWritebacks[3] == 0);
+  for (int i = 0; i < 3; i++)
+    fprintf(tptr, " %d", dWritebacks[i]);
+
+  fprintf(tptr, "  %lu %d %d %d", this->pc->instAddr(),
+          taken, mispred, fetchdepth);
+  assert(iwalkDepth[0] == -1 && dwalkDepth[0] == -1);
+  for (int i = 1; i < 4; i++)
+    fprintf(tptr, " %d", iwalkDepth[i]);
+  for (int i = 1; i < 4; i++)
+    fprintf(tptr, " %lu", iwalkAddr[i]);
+  assert(iWritebacks[0] == 0 && iWritebacks[3] == 0);
+  for (int i = 1; i < 3; i++)
+    fprintf(tptr, " %d", iWritebacks[i]);
+
+  fprintf(tptr, "  %d %d ", this->staticInst->numSrcRegs(),
+          this->staticInst->numDestRegs());
+  for (int i = 0; i < this->staticInst->numSrcRegs(); i++)
+    fprintf(tptr, " %d %hu", this->staticInst->srcRegIdx(i).classValue(),
+            this->staticInst->srcRegIdx(i).index());
+  fprintf(tptr, " ");
+  for (int i = 0; i < this->staticInst->numDestRegs(); i++)
+    fprintf(tptr, " %d %hu", this->staticInst->destRegIdx(i).classValue(),
+            this->staticInst->destRegIdx(i).index());
+  fprintf(tptr, "\n");
+}
+
 MinorDynInst::~MinorDynInst()
 {
     if (traceData)

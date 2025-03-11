@@ -89,7 +89,8 @@ Queued::DeferredPacket::startTranslation(BaseMMU *mmu)
 
 void
 Queued::DeferredPacket::finish(const Fault &fault,
-    const RequestPtr &req, ThreadContext *tc, BaseMMU::Mode mode)
+    const RequestPtr &req, ThreadContext *tc, BaseMMU::Mode mode,
+    int *depths, Addr *addrs)
 {
     assert(ongoingTranslation);
     ongoingTranslation = false;

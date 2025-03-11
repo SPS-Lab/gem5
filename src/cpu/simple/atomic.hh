@@ -170,6 +170,18 @@ class AtomicSimpleCPU : public BaseSimpleCPU
     bool dcache_access;
     Tick dcache_latency;
 
+    int i_depth;
+    int i_writebacks[4];
+    int iw_depths[4];
+    Addr iw_addrs[4];
+
+    Addr d_addr;
+    unsigned d_size;
+    int d_depth;
+    int d_writebacks[4];
+    int dw_depths[4];
+    Addr dw_addrs[4];
+
     /** Probe Points. */
     ProbePointArg<std::pair<SimpleThread *, const StaticInstPtr>> *ppCommit;
 
@@ -253,6 +265,9 @@ class AtomicSimpleCPU : public BaseSimpleCPU
      * debugging).
      */
     void printAddr(Addr a);
+
+    FILE *tptr = nullptr;
+    void dumpInst(StaticInstPtr inst, const PCStateBase &pc);
 };
 
 } // namespace gem5

@@ -286,7 +286,8 @@ class LSQ : public Named
       protected:
         /** TLB interace */
         void finish(const Fault &fault_, const RequestPtr &request_,
-                    ThreadContext *tc, BaseMMU::Mode mode)
+                    ThreadContext *tc, BaseMMU::Mode mode,
+                    int *depths, Addr *addrs)
         { }
 
       public:
@@ -347,7 +348,8 @@ class LSQ : public Named
       protected:
         /** TLB interace */
         void finish(const Fault &fault_, const RequestPtr &request_,
-                    ThreadContext *tc, BaseMMU::Mode mode);
+                    ThreadContext *tc, BaseMMU::Mode mode,
+                    int *depths, Addr *addrs);
 
         /** Has my only packet been sent to the memory system but has not
          *  yet been responded to */
@@ -420,7 +422,8 @@ class LSQ : public Named
       protected:
         /** TLB response interface */
         void finish(const Fault &fault_, const RequestPtr &request_,
-                    ThreadContext *tc, BaseMMU::Mode mode);
+                    ThreadContext *tc, BaseMMU::Mode mode,
+                    int *depths, Addr *addrs);
 
       public:
         SplitDataRequest(LSQ &port_, MinorDynInstPtr inst_,
@@ -480,6 +483,9 @@ class LSQ : public Named
         /** Maximum number of stores that can be issued per cycle */
         const unsigned int storeLimitPerCycle;
 
+        // Current store buffer index.
+        size_t idx = 0;
+
       public:
         /** Queue of store requests on their way to memory */
         std::deque<LSQRequestPtr> slots;
@@ -499,6 +505,9 @@ class LSQ : public Named
 
         /** Delete the given request and free the slot it occupied */
         void deleteRequest(LSQRequestPtr request);
+
+        // Delete completed stores from head.
+        void deleteHeadRequest();
 
         /** Insert a request at the back of the queue */
         void insert(LSQRequestPtr request);
@@ -620,6 +629,9 @@ class LSQ : public Named
 
     /** Address Mask for a cache block (e.g. ~(cache_block_size-1)) */
     Addr cacheBlockMask;
+
+    /** Trace file. */
+    FILE *tptr;
 
   protected:
     /** Try and issue a memory access for a translated request at the

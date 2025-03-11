@@ -102,7 +102,7 @@ class Stage2LookUp : public BaseMMU::Translation
     void markDelayed() {}
 
     void finish(const Fault &fault, const RequestPtr &req, ThreadContext *tc,
-                BaseMMU::Mode mode);
+                BaseMMU::Mode mode, int *depths, Addr *addrs);
 };
 
 } // namespace ArmISA

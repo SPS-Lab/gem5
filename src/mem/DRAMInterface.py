@@ -1037,6 +1037,10 @@ class GDDR5_4000_2x32(DRAMInterface):
     tRTW = "2ns"
 
 
+    # single rank device, set to 0
+    tCS = '0ns'
+    tREFI = '3.9us'
+
 # A single HBM x128 interface (one command and address bus), with
 # default timings based on data publically released
 # ("HBM: Memory Solution for High Performance Processors", MemCon, 2014),

@@ -238,19 +238,20 @@ Fetch1::FetchRequest::makePacket()
 
 void
 Fetch1::FetchRequest::finish(const Fault &fault_, const RequestPtr &request_,
-                             ThreadContext *tc, BaseMMU::Mode mode)
+                             ThreadContext *tc, BaseMMU::Mode mode,
+                             int *depths, Addr *addrs)
 {
     fault = fault_;
 
     state = Translated;
-    fetch.handleTLBResponse(this);
+    fetch.handleTLBResponse(this, depths, addrs);
 
     /* Let's try and wake up the processor for the next cycle */
     fetch.cpu.wakeupOnEvent(Pipeline::Fetch1StageId);
 }
 
 void
-Fetch1::handleTLBResponse(FetchRequestPtr response)
+Fetch1::handleTLBResponse(FetchRequestPtr response, int *depths, Addr *addrs)
 {
     numFetchesInITLB--;
 
@@ -271,6 +272,14 @@ Fetch1::handleTLBResponse(FetchRequestPtr response)
     response->state = FetchRequest::Translated;
 
     tryToSendToTransfers(response);
+
+    if (depths) {
+      assert(addrs);
+      for (int i = 0; i < 4; i++) {
+        walkDepth[i] = depths[i];
+        walkAddr[i] = addrs[i];
+      }
+    }
 }
 
 Fetch1::FetchRequest::~FetchRequest()
@@ -555,6 +564,14 @@ Fetch1::processResponse(Fetch1::FetchRequestPtr response,
     /* Set the lineBase, which is a sizeof(MachInst) aligned address <=
      *  pc.instAddr() */
     line.lineBaseAddr = response->request->getVaddr();
+
+    line.depth = packet->req->getAccessDepth();
+    for (int i = 0; i < 4; i++) {
+      line.walkDepth[i] = walkDepth[i];
+      line.walkAddr[i] = walkAddr[i];
+      walkDepth[i] = -1;
+      walkAddr[i] = 0;
+    }
 
     if (response->fault != NoFault) {
         /* Stop fetching if there was a fault */

@@ -511,22 +511,27 @@ BaseSimpleCPU::advancePC(const Fault &fault)
         }
     }
 
-    if (branchPred && curStaticInst && curStaticInst->isControl()) {
-        // Use a fake sequence number since we only have one
-        // instruction in flight at the same time.
-        const InstSeqNum cur_sn(0);
+    // Use a fake sequence number since we only have one
+    // instruction in flight at the same time.
+    const InstSeqNum cur_sn(0);
 
-        if (*t_info.predPC != thread->pcState()) {
+
+    if (branchPred && curStaticInst && curStaticInst->isControl()) {
+        if (*t_info.predPC == thread->pcState()) {
+            // Correctly predicted branch
+            branchPred->update(cur_sn, curThread);
+        } else {
 
             // Mis-predicted branch
             branchPred->squash(cur_sn, thread->pcState(), branching,
                                 curThread);
             ++t_info.execContextStats.numBranchMispred;
+            mis_pred = true;
         }
-        // Update the branch predictor, this is done whether the
-        // prediction was correct or not.
+
+    } else if (branchPred && curStaticInst)
         branchPred->update(cur_sn, curThread);
-    }
+
 }
 
 } // namespace gem5

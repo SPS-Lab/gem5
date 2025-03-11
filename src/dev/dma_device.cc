@@ -45,6 +45,7 @@
 #include <cstring>
 #include <utility>
 
+//#include "arch/arm/table_walker.hh"
 #include "base/logging.hh"
 #include "base/trace.hh"
 #include "debug/DMA.hh"
@@ -74,13 +75,14 @@ DmaPort::handleRespPacket(PacketPtr pkt, Tick delay)
     auto *state = dynamic_cast<DmaReqState*>(pkt->senderState);
     assert(state);
 
-    handleResp(state, pkt->getAddr(), pkt->req->getSize(), delay);
+    handleResp(state, pkt->getAddr(), pkt->req->getSize(), delay, pkt);
 
     delete pkt;
 }
 
 void
-DmaPort::handleResp(DmaReqState *state, Addr addr, Addr size, Tick delay)
+DmaPort::handleResp(DmaReqState *state, Addr addr, Addr size, Tick delay,
+                    PacketPtr pkt)
 {
     assert(pendingCount != 0);
     pendingCount--;
@@ -95,6 +97,7 @@ DmaPort::handleResp(DmaReqState *state, Addr addr, Addr size, Tick delay)
     // than the packet as the latter could be rounded up to line sizes.
     state->numBytes += size;
     assert(state->totBytes >= state->numBytes);
+
 
     bool all_bytes = (state->totBytes == state->numBytes);
     if (state->aborted) {
@@ -112,6 +115,7 @@ DmaPort::handleResp(DmaReqState *state, Addr addr, Addr size, Tick delay)
     } else if (all_bytes) {
         // If we have reached the end of this DMA request, then signal the
         // completion and delete the sate.
+
         if (state->completionEvent) {
             delay += state->delay;
             device->schedule(state->completionEvent, curTick() + delay);

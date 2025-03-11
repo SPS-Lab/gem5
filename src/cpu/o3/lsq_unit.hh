@@ -566,6 +566,9 @@ class LSQUnit
   public:
     typedef typename CircularQueue<LQEntry>::iterator LQIterator;
     typedef typename CircularQueue<SQEntry>::iterator SQIterator;
+
+    /** Trace file. */
+    FILE *tptr;
 };
 
 } // namespace o3

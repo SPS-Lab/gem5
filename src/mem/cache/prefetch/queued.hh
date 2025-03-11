@@ -132,7 +132,8 @@ class Queued : public Base
         {}
 
         void finish(const Fault &fault, const RequestPtr &req,
-                            ThreadContext *tc, BaseMMU::Mode mode) override;
+                    ThreadContext *tc, BaseMMU::Mode mode,
+                    int *depths, Addr *addrs) override;
 
         /**
          * Issues the translation request to the provided MMU

@@ -713,6 +713,9 @@ class BaseCPU : public ClockedObject
 
 
   public:
+    // Whether the commit is doing squash to refresh pipeline.
+    bool phaseSquash;
+
     struct FetchCPUStats : public statistics::Group
     {
         FetchCPUStats(statistics::Group *parent, int thread_id);
@@ -846,6 +849,7 @@ class BaseCPU : public ClockedObject
     std::vector<std::unique_ptr<FetchCPUStats>> fetchStats;
     std::vector<std::unique_ptr<ExecuteCPUStats>> executeStats;
     std::vector<std::unique_ptr<CommitCPUStats>> commitStats;
+
 };
 
 } // namespace gem5

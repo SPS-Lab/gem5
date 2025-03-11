@@ -127,12 +127,16 @@ class PCStateBase : public Serializable
         _upc = 0;
     }
 
+
+    virtual Addr npc() const = 0;
+
     virtual void
     set(Addr val)
     {
         _pc = val;
         _upc = 0;
     }
+
 
     virtual void advance() = 0;
     virtual bool branching() const = 0;
@@ -271,7 +275,7 @@ class PCStateWithNext : public PCStateBase
     Addr pc() const { return _pc; }
     void pc(Addr val) { _pc = val; }
 
-    Addr npc() const { return _npc; }
+    Addr npc() const override { return _npc; }
     void npc(Addr val) { _npc = val; }
 
     MicroPC upc() const { return _upc; }

@@ -246,14 +246,16 @@ class MMU : public BaseMMU
 
     Fault
     translateAtomic(const RequestPtr &req,
-                    ThreadContext *tc, Mode mode) override
+                    ThreadContext *tc, Mode mode,
+                    int *depths = NULL, Addr *addrs = NULL) override
     {
-        return translateAtomic(req, tc, mode, NormalTran);
+        return translateAtomic(req, tc, mode, NormalTran, depths, addrs);
     }
     Fault translateAtomic(const RequestPtr &req, ThreadContext *tc,
-        BaseMMU::Mode mode, ArmTranslationType tran_type, bool stage2);
+        BaseMMU::Mode mode, ArmTranslationType tran_type, bool stage2,
+        int *depths = NULL, Addr *addrs = NULL);
     Fault translateAtomic(const RequestPtr &req, ThreadContext *tc, Mode mode,
-        ArmTranslationType tran_type);
+        ArmTranslationType tran_type, int *depths = NULL, Addr *addrs = NULL);
 
     void
     translateTiming(const RequestPtr &req, ThreadContext *tc,
@@ -273,13 +275,15 @@ class MMU : public BaseMMU
         CachedState &state);
     Fault translateMmuOn(ThreadContext *tc, const RequestPtr &req, Mode mode,
         Translation *translation, bool &delay, bool timing, bool functional,
-        Addr vaddr, TranMethod tran_method,
-        CachedState &state);
+
+        Addr vaddr, ArmFault::TranMethod tranMethod,
+        CachedState &state, TlbEntry **tep);
+
 
     Fault translateFs(const RequestPtr &req, ThreadContext *tc, Mode mode,
             Translation *translation, bool &delay,
             bool timing, ArmTranslationType tran_type, bool functional,
-            CachedState &state);
+            CachedState &state, TlbEntry **tep = NULL);
     Fault translateSe(const RequestPtr &req, ThreadContext *tc, Mode mode,
             Translation *translation, bool &delay, bool timing,
             CachedState &state);

@@ -138,6 +138,10 @@ TableWalker::WalkerState::WalkerState() :
     mode(BaseMMU::Read), tranType(MMU::NormalTran), l2Desc(l1Desc),
     delayed(false), tableWalker(nullptr)
 {
+  for (int i = 0; i < 4; i++) {
+    depthByLevel[i] = -1;
+    addrByLevel[i] = 0;
+  }
 }
 
 TableWalker::Port::Port(TableWalker& _walker)
@@ -541,8 +545,13 @@ TableWalker::processWalkWrapper()
             pending = false;
             nextWalk(currState->tc);
 
-            currState->transState->finish(fault, currState->req,
-                    currState->tc, currState->mode);
+
+        if (f != NoFault) {
+            curr_state_copy->transState->finish(
+                f, curr_state_copy->req, curr_state_copy->tc,
+                curr_state_copy->mode, curr_state_copy->depthByLevel,
+                curr_state_copy->addrByLevel);
+
 
             delete currState;
             currState = NULL;
@@ -1778,6 +1787,7 @@ TableWalker::generateLongDescFault(ArmFault::FaultSource src)
 void
 TableWalker::doLongDescriptor()
 {
+    currState->depthByLevel[currState->longDesc.lookupLevel] = LastDepth;
     if (currState->fault != NoFault) {
         return;
     }
@@ -1848,6 +1858,16 @@ TableWalker::doLongDescriptor()
                 currState->fault = generateLongDescFault(fault_source);
             } else {
                 insertTableEntry(currState->longDesc, true);
+                TlbEntry *te = mmu->lookup(currState->vaddr, currState->asid,
+                                           currState->vmid, currState->isHyp,
+                                           currState->isSecure, true, false,
+                                           currState->el, false, isStage2,
+                                           currState->mode);
+                assert(te);
+                for (int i = 0; i < 4; i++) {
+                  te->walkDepth[i] = currState->depthByLevel[i];
+                  te->walkAddr[i] = currState->addrByLevel[i];
+                }
             }
         }
         return;
@@ -2140,7 +2160,9 @@ TableWalker::doLongDescriptorWrapper(LookupLevel curr_lookup_level)
     if (currState->fault != NoFault) {
         // A fault was generated
         currState->transState->finish(currState->fault, currState->req,
-                                      currState->tc, currState->mode);
+                                      currState->tc, currState->mode,
+                                      currState->depthByLevel,
+                                      currState->addrByLevel);
 
         pending = false;
         nextWalk(currState->tc);
@@ -2192,7 +2214,12 @@ TableWalker::fetchDescriptor(Addr desc_addr,
     Request::Flags flags, LookupLevel lookup_level, Event *event,
     void (TableWalker::*doDescriptor)())
 {
+
+    currState->addrByLevel[currState->longDesc.lookupLevel] = descAddr;
+    bool isTiming = currState->timing;
+
     uint8_t *data = descriptor.getRawPtr();
+
 
     DPRINTF(PageTableWalker,
             "Fetching descriptor at address: 0x%x stage2Req: %d\n",
@@ -2547,7 +2574,8 @@ TableWalker::Stage2Walk::Stage2Walk(TableWalker &_parent,
 void
 TableWalker::Stage2Walk::finish(const Fault &_fault,
                                 const RequestPtr &req,
-                                ThreadContext *tc, BaseMMU::Mode mode)
+                                ThreadContext *tc, BaseMMU::Mode mode,
+                                int *depths, Addr *addrs)
 {
     fault = _fault;
 

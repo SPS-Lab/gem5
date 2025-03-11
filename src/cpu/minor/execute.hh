@@ -127,6 +127,9 @@ class Execute : public Named
     /** The execution functional units */
     std::vector<FUPipeline *> funcUnits;
 
+    /** Trace file. */
+    FILE *tptr;
+
   public: /* Public for Pipeline to be able to pass it to Decode */
     std::vector<InputBuffer<ForwardInstData>> inputBuffer;
 
@@ -272,7 +275,7 @@ class Execute : public Named
 
     /** Do the stats handling and instruction count and PC event events
      *  related to the new instruction/op counts */
-    void doInstCommitAccounting(MinorDynInstPtr inst);
+    void doInstCommitAccounting(MinorDynInstPtr inst, Fault fault);
 
     /** Check all threads for possible interrupts. If interrupt is taken,
      *  returns the tid of the thread.  interrupted is set if any thread

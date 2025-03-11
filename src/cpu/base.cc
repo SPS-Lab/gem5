@@ -182,6 +182,9 @@ BaseCPU::BaseCPU(const Params &p, bool is_checker)
               "of threads (%i).\n", params().isa.size(), numThreads);
     }
 
+
+    phaseSquash = false;
+
     if (!FullSystem && params().workload.size() != numThreads) {
         fatal("Number of processes (cpu.workload) (%i) assigned to the CPU "
               "does not equal number of threads (%i).\n",
@@ -221,6 +224,7 @@ BaseCPU::BaseCPU(const Params &p, bool is_checker)
         commitStatptr->cpi = baseStats.numCycles / commitStatptr->numInsts;
         commitStats.emplace_back(commitStatptr);
     }
+
 }
 
 void

@@ -77,7 +77,11 @@ Decode::Decode(CPU *_cpu, const BaseO3CPUParams &params)
              decodeWidth, static_cast<int>(MaxWidth));
 
     // @todo: Make into a parameter
-    skidBufferMax = (fetchToDecodeDelay + 1) *  params.decodeWidth;
+
+    skidBufferMax = (fetchToDecodeDelay + 1) *  params.fetchWidth;
+    // FIXME: temporary fix.
+    skidBufferMax *= 2;
+
     for (int tid = 0; tid < MaxThreads; tid++) {
         stalls[tid] = {false};
         decodeStatus[tid] = Idle;
@@ -706,6 +710,7 @@ Decode::decodeInsts(ThreadID tid)
         if (debug::O3PipeView) {
             inst->decodeTick = curTick() - inst->fetchTick;
         }
+        inst->decodeTick = curTick() - inst->fetchTick;
 #endif
 
         // Ensure that if it was predicted as a branch, it really is a
@@ -744,7 +749,7 @@ Decode::decodeInsts(ThreadID tid)
                         PredPC: %s\n",
                         tid, inst->seqNum, inst->readPredTarg(), *target);
                 //The micro pc after an instruction level branch should be 0
-                inst->setPredTarg(*target);
+                inst->setPredTarg(*target, false);
                 break;
             }
         }

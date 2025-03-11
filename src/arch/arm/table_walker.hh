@@ -985,6 +985,9 @@ class TableWalker : public ClockedObject
         /** Page entries walked during service (for stats) */
         unsigned levels;
 
+        int depthByLevel[4];
+        Addr addrByLevel[4];
+
         void doL1Descriptor();
         void doL2Descriptor();
 
@@ -1056,7 +1059,8 @@ class TableWalker : public ClockedObject
         void markDelayed() {}
 
         void finish(const Fault &fault, const RequestPtr &req,
-            ThreadContext *tc, BaseMMU::Mode mode);
+            ThreadContext *tc, BaseMMU::Mode mode,
+            int *depths, Addr *addrs);
 
         void
         setVirt(Addr vaddr, int size, Request::Flags flags,
@@ -1253,15 +1257,22 @@ class TableWalker : public ClockedObject
 
     static uint8_t pageSizeNtoStatBin(uint8_t N);
 
+
+
+
+  public:
+    int LastDepth;
+
     void mpamTagTableWalk(RequestPtr &req) const;
 
-  public: /* Testing */
+ 
     TlbTestInterface *test;
 
     void setTestInterface(TlbTestInterface *ti);
 
     Fault testWalk(const RequestPtr &walk_req, DomainType domain,
                    LookupLevel lookup_level);
+
 };
 
 } // namespace ArmISA

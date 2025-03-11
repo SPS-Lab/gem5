@@ -922,7 +922,7 @@ LSQ::pushRequest(const DynInstPtr& inst, bool isLoad, uint8_t *data,
 
 void
 LSQ::SingleDataRequest::finish(const Fault &fault, const RequestPtr &request,
-        gem5::ThreadContext* tc, BaseMMU::Mode mode)
+        gem5::ThreadContext* tc, BaseMMU::Mode mode, int* depths, Addr *addrs)
 {
     _fault.push_back(fault);
     numInTranslationFragments = 0;
@@ -949,12 +949,19 @@ LSQ::SingleDataRequest::finish(const Fault &fault, const RequestPtr &request,
 
         LSQRequest::_inst->fault = fault;
         LSQRequest::_inst->translationCompleted(true);
+        if (depths) {
+          assert(addrs);
+          for (int i = 0; i < 4; i++) {
+            _inst->dwalkDepth[i] = depths[i];
+            _inst->dwalkAddr[i] = addrs[i];
+          }
+        }
     }
 }
 
 void
 LSQ::SplitDataRequest::finish(const Fault &fault, const RequestPtr &req,
-        gem5::ThreadContext* tc, BaseMMU::Mode mode)
+        gem5::ThreadContext* tc, BaseMMU::Mode mode, int* depths, Addr *addrs)
 {
     int i;
     for (i = 0; i < _reqs.size() && _reqs[i] != req; i++);
@@ -994,6 +1001,13 @@ LSQ::SplitDataRequest::finish(const Fault &fault, const RequestPtr &req,
             } else {
                 _inst->fault = _fault[0];
                 setState(State::Fault);
+            }
+            if (depths) {
+              assert(addrs);
+              for (int i = 0; i < 4; i++) {
+                _inst->dwalkDepth[i] = depths[i];
+                _inst->dwalkAddr[i] = addrs[i];
+              }
             }
         }
 
@@ -1245,7 +1259,15 @@ LSQ::SingleDataRequest::recvTimingResp(PacketPtr pkt)
     flags.set(Flag::Complete);
     assert(pkt == _packets.front());
     _port.completeDataAccess(pkt);
+
+
+    // Record cache hit level info.
+    _inst->cachedepth = pkt->req->getAccessDepth();
+    for (int i = 0; i < 4; i++)
+      _inst->dWritebacks[i] = pkt->req->writebacks[i];
+
     _hasStaleTranslation = false;
+
     return true;
 }
 
@@ -1271,7 +1293,16 @@ LSQ::SplitDataRequest::recvTimingResp(PacketPtr pkt)
         _port.completeDataAccess(resp);
         delete resp;
     }
+
+
+    // Record cache hit level info.
+    _inst->cachedepth = std::max(_inst->cachedepth, pkt->req->getAccessDepth());
+    for (int i = 0; i < 4; i++)
+      _inst->dWritebacks[i] =
+          std::max(_inst->dWritebacks[i], pkt->req->writebacks[i]);
+
     _hasStaleTranslation = false;
+
     return true;
 }
 

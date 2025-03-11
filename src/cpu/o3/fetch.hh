@@ -114,10 +114,11 @@ class Fetch
 
         void
         finish(const Fault &fault, const RequestPtr &req,
-            gem5::ThreadContext *tc, BaseMMU::Mode mode)
+            gem5::ThreadContext *tc, BaseMMU::Mode mode, int *depths,
+            Addr *addrs)
         {
             assert(mode == BaseMMU::Execute);
-            fetch->finishTranslation(fault, req);
+            fetch->finishTranslation(fault, req, depths, addrs);
             delete this;
         }
     };
@@ -300,7 +301,8 @@ class Fetch
      * @return Any fault that occured.
      */
     bool fetchCacheLine(Addr vaddr, ThreadID tid, Addr pc);
-    void finishTranslation(const Fault &fault, const RequestPtr &mem_req);
+    void finishTranslation(const Fault &fault, const RequestPtr &mem_req,
+                           int *depths = NULL, Addr *addrs = NULL);
 
 
     /** Check if an interrupt is pending and that we need to handle
@@ -529,6 +531,15 @@ class Fetch
 
     /** Event used to delay fault generation of translation faults */
     FinishTranslationEvent finishTranslationEvent;
+
+    // Last fetch depth.
+    int depth = 0;
+    int writebacks[4] = {0, 0, 0, 0};
+    // Last itlb table walking depth.
+    int walkDepth[4] = {-1, -1, -1, -1};
+    Addr walkAddr[4] = {0, 0, 0, 0};
+    // In the status of phase squash.
+    bool phaseSquash;
 
   protected:
     struct FetchStatGroup : public statistics::Group
