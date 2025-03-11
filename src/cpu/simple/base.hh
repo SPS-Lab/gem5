@@ -87,7 +87,7 @@ class BaseSimpleCPU : public BaseCPU
     branch_prediction::BPredUnit *branchPred;
 
 
-    const RegIndex zeroReg;
+    RegIndex zeroReg;
 
     bool mis_pred;
 
