@@ -179,6 +179,8 @@ class RdWrPort(FUDesc):
         OpDesc(opClass="SimdUnitStrideFaultOnlyFirstLoad"),
         OpDesc(opClass="SimdWholeRegisterLoad"),
         OpDesc(opClass="SimdWholeRegisterStore"),
+        OpDesc(opClass="SimdUnitStrideSegmentedStore"),
+        OpDesc(opClass="SimdUnitStrideSegmentedLoad"),
     ]
     count = 4
 
