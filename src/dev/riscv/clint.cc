@@ -37,6 +37,7 @@
 
 #include "dev/riscv/clint.hh"
 
+#include "arch/riscv/system.hh"
 #include "cpu/base.hh"
 #include "debug/Clint.hh"
 #include "mem/packet.hh"
@@ -78,15 +79,6 @@ Clint::raiseInterruptPin(int id)
     for (int context_id = 0; context_id < nThread; context_id++) {
 
         auto tc = system->threads[context_id];
-
-        // Update misc reg file
-        ISA* isa = dynamic_cast<ISA*>(tc->getIsaPtr());
-        if (isa->rvType() == RV32) {
-            isa->setMiscRegNoEffect(MISCREG_TIME, bits(mtime, 31, 0));
-            isa->setMiscRegNoEffect(MISCREG_TIMEH, bits(mtime, 63, 32));
-        } else {
-            isa->setMiscRegNoEffect(MISCREG_TIME, mtime);
-        }
 
         // Post timer interrupt
         uint64_t mtimecmp = registers.mtimecmp[context_id].get();
@@ -133,9 +125,8 @@ Clint::ClintRegisters::init()
 
     // Add registers to bank
     for (int i = 0; i < clint->nThread; i++) {
-        auto read_cb = std::bind(&Clint::readMSIP, clint, _1, i);
-        msip[i].reader(read_cb);
         auto write_cb = std::bind(&Clint::writeMSIP, clint, _1, _2, i);
+        msip[i].writeable(0x1);
         msip[i].writer(write_cb);
         addRegister(msip[i]);
     }
@@ -151,32 +142,11 @@ Clint::ClintRegisters::init()
     }
 }
 
-uint32_t
-Clint::readMSIP(Register32& reg, const int thread_id)
-{
-    // To avoid discrepancies if mip is externally set using remote_gdb etc.
-    auto tc = system->threads[thread_id];
-    RegVal mip = tc->readMiscReg(MISCREG_IP);
-    uint32_t msip = bits<uint32_t>(mip, ExceptionCode::INT_SOFTWARE_MACHINE);
-    reg.update(msip);
-    return reg.get();
-};
-
 void
 Clint::writeMSIP(Register32& reg, const uint32_t& data, const int thread_id)
 {
     reg.update(data);
-    assert(data <= 1);
-    auto tc = system->threads[thread_id];
-    if (data > 0) {
-        DPRINTF(Clint, "MSIP posted - thread: %d\n", thread_id);
-        tc->getCpuPtr()->postInterrupt(tc->threadId(),
-            ExceptionCode::INT_SOFTWARE_MACHINE, 0);
-    } else {
-        DPRINTF(Clint, "MSIP cleared - thread: %d\n", thread_id);
-        tc->getCpuPtr()->clearInterrupt(tc->threadId(),
-            ExceptionCode::INT_SOFTWARE_MACHINE, 0);
-    }
+    updateMSIP(thread_id);
 };
 
 Tick
@@ -220,6 +190,13 @@ Clint::init()
 {
     registers.init();
     BasicPioDevice::init();
+
+    RiscvSystem *rv_sys = dynamic_cast<RiscvSystem *>(system);
+    if (rv_sys != nullptr) {
+        rv_sys->setClint(this);
+    } else {
+        warn("Set Clint to RiscvSystem failed.");
+    }
 }
 
 Port &
@@ -258,6 +235,21 @@ Clint::unserialize(CheckpointIn &cp)
 }
 
 void
+Clint::updateMSIP(const int thread_id)
+{
+    auto tc = system->threads[thread_id];
+    if (registers.msip[thread_id].get()) {
+        DPRINTF(Clint, "MSIP posted - thread: %d\n", thread_id);
+        tc->getCpuPtr()->postInterrupt(tc->threadId(),
+            ExceptionCode::INT_SOFTWARE_MACHINE, 0);
+    } else {
+        DPRINTF(Clint, "MSIP cleared - thread: %d\n", thread_id);
+        tc->getCpuPtr()->clearInterrupt(tc->threadId(),
+            ExceptionCode::INT_SOFTWARE_MACHINE, 0);
+    }
+}
+
+void
 Clint::doReset() {
     registers.mtime.reset();
     for (int i = 0; i < nThread; i++) {
@@ -268,6 +260,7 @@ Clint::doReset() {
             registers.mtimecmp[i].reset();
         }
         registers.msip[i].reset();
+        updateMSIP(i);
     }
     // We need to update the mtip interrupt bits when reset
     raiseInterruptPin(INT_RESET);
