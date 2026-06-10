@@ -169,6 +169,10 @@ LSQUnit::completeDataAccess(PacketPtr pkt)
             assert(inst->isLoad() || inst->isStoreConditional() ||
                    inst->isAtomic());
 
+            if (inst->isLoad()) {
+                inst->loadMemAccessTick = curTick();
+            }
+
             // hardware transactional memory
             if (pkt->htmTransactionFailedInCache()) {
                 request->mainPacket()->setHtmTransactionFailedInCache(
@@ -670,6 +674,8 @@ LSQUnit::executeLoad(const DynInstPtr &inst)
                 return checkViolations(it, inst);
         }
     }
+
+    inst->loadMemAccessTick = curTick();
 
     return load_fault;
 }
@@ -1620,6 +1626,9 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
     // an exta cycle to re-issue and execute
     request->buildPackets();
     request->sendPacketToCache();
+    if (request->isSent()) {
+        load_inst->loadMemRequestTick = curTick();
+    }
     if (!request->isSent()) {
         if (!lsq->cacheBlocked()) {
             iewStage->retryMemInst(load_inst);

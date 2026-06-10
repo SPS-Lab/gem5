@@ -455,5 +455,25 @@ DynInst::initiateMemAMO(Addr addr, unsigned size, Request::Flags flags,
             std::move(amo_op), std::vector<bool>(size, true));
 }
 
+void
+DynInst::dumpInst(FILE *tptr, bool isFault)
+{
+
+    if (!(this->staticInst->isLoad())) {
+        return;
+    }
+
+    fprintf(tptr, "%s %d %llu ", this->cpu->name().c_str(), this->threadNumber,
+            (unsigned long long)this->seqNum);
+    Addr pc = this->pcState().instAddr();
+    fprintf(tptr, "0x%llx ", (unsigned long long)pc);
+    // fprintf(tptr, "%s ", this->staticInst->disassemble(pc).c_str());
+    Cycles latency_cycles = this->cpu->ticksToCycles(this->loadMemAccessTick -
+                                                     this->loadMemRequestTick);
+    fprintf(tptr, "%llu ", (unsigned long long)latency_cycles);
+
+    fprintf(tptr, "\n");
+}
+
 } // namespace o3
 } // namespace gem5

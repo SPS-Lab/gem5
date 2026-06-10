@@ -150,6 +150,12 @@ Commit::Commit(CPU *_cpu, const BaseO3CPUParams &params)
         htmStops[tid] = 0;
     }
     interrupt = NoFault;
+
+    // Open file trace.txt in write mode.
+    tptr = fopen("trace.txt", "w");
+    if (tptr == NULL) {
+        printf("Could not open trace file.\n");
+    }
 }
 
 std::string Commit::name() const { return cpu->name() + ".commit"; }
@@ -1244,6 +1250,7 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
 
         // Generate trap squash event.
         generateTrapEvent(tid, inst_fault);
+        head_inst->dumpInst(tptr, true);
         return false;
     }
 
@@ -1282,6 +1289,7 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
         delete head_inst->traceData;
         head_inst->traceData = NULL;
     }
+    head_inst->dumpInst(tptr, false);
 
     // If this was a store, record it for this cycle.
     if (head_inst->isStore() || head_inst->isAtomic())

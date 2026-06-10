@@ -222,6 +222,9 @@ class Commit
      */
     void generateTCEvent(ThreadID tid);
 
+    /** Trace file. */
+    FILE *tptr;
+
   private:
     /** Updates the overall status of commit with the nextStatus, and
      * tell the CPU if commit is active/inactive.

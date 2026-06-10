@@ -1027,9 +1027,16 @@ class DynInst : public ExecContext, public RefCounted
     int32_t commitTick = -1;
     int32_t storeTick = -1;
 
+    // To obtain latency of memory access for load instructions
+    int32_t loadMemAccessTick = -1;
+    int32_t loadMemRequestTick = -1;
+
     /* Values used by LoadToUse stat */
     Tick firstIssue = -1;
     Tick lastWakeDependents = -1;
+
+    // Gernerate the AMAT for each load instruction.
+    void dumpInst(FILE *tptr, bool isFault);
 
     /** Reads a misc. register, including any side-effects the read
      * might have as defined by the architecture.
