@@ -87,7 +87,10 @@ class PrivateL1PrivateL2CacheHierarchy(
         l1d_size: str,
         l1i_size: str,
         l2_size: str,
-        prefetcher = StridePrefetcher,
+        l1d_prefetcher = None,
+        l2_prefetcher = None,
+        l1d_mshrs = 16,
+        l2_mshrs = 20,
         membus: Optional[BaseXBar] = None,
     ) -> None:
         """
@@ -112,7 +115,10 @@ class PrivateL1PrivateL2CacheHierarchy(
             l2_size=l2_size,
             l2_assoc=4,
         )
-        self._prefetcher = prefetcher
+        self._l1d_prefetcher = l1d_prefetcher
+        self._l2_prefetcher = l2_prefetcher
+        self._l1d_mshrs = l1d_mshrs
+        self._l2_mshrs = l2_mshrs
         self.membus = membus if membus else self._get_default_membus()
 
     @overrides(AbstractClassicCacheHierarchy)
@@ -137,13 +143,13 @@ class PrivateL1PrivateL2CacheHierarchy(
 
         for i, cpu in enumerate(board.get_processor().get_cores()):
             l2_node = self.add_root_child(
-                f"l2-cache-{i}", L2Cache(size=self._l2_size)
+                f"l2-cache-{i}", L2Cache(size=self._l2_size, mshrs=self._l2_mshrs, PrefetcherCls=self._l2_prefetcher)
             )
             l1i_node = l2_node.add_child(
                 f"l1i-cache-{i}", L1ICache(size=self._l1i_size)
             )
             l1d_node = l2_node.add_child(
-                f"l1d-cache-{i}", L1DCache(size=self._l1d_size, PrefetcherCls=self._prefetcher)
+                f"l1d-cache-{i}", L1DCache(size=self._l1d_size, mshrs=self._l1d_mshrs, PrefetcherCls=self._l1d_prefetcher)
             )
 
             self.l2buses[i].mem_side_ports = l2_node.cache.cpu_side

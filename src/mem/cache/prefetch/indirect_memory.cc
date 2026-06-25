@@ -109,7 +109,7 @@ IndirectMemory::calculatePrefetch(const PrefetchInfo &pfi,
                 // in the cache), also, only indexes up to 8 bytes are
                 // considered
 
-                if (!miss && !pfi.isWrite() && pfi.getSize() <= 8) {
+                if (!miss && !pfi.isWrite() && pfi.getSize() <= 8 && pfi.hasData()) {
                     int64_t index = 0;
                     bool read_index = true;
                     switch(pfi.getSize()) {

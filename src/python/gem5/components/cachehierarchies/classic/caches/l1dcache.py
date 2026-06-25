@@ -24,7 +24,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from typing import Type
+from typing import Optional, Type
 
 from m5.objects import (
     BasePrefetcher,
@@ -53,7 +53,7 @@ class L1DCache(Cache):
         mshrs: int = 16,
         tgts_per_mshr: int = 20,
         writeback_clean: bool = False,
-        PrefetcherCls: Type[BasePrefetcher] = StridePrefetcher,
+        PrefetcherCls: Optional[Type[BasePrefetcher]] = StridePrefetcher,
     ):
         super().__init__()
         self.size = size
@@ -64,4 +64,5 @@ class L1DCache(Cache):
         self.mshrs = mshrs
         self.tgts_per_mshr = tgts_per_mshr
         self.writeback_clean = writeback_clean
-        self.prefetcher = PrefetcherCls()
+        if PrefetcherCls is not None:
+            self.prefetcher = PrefetcherCls()
