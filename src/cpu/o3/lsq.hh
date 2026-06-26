@@ -117,6 +117,11 @@ class LSQ
 
             /* Number of retry responses sent */
             statistics::Scalar numSendRetryResp;
+
+	    /* custom RVV load stats */ 
+	    statistics::Distribution rvvLoadCacheLineFootprint;
+	    statistics::Scalar rvvLoadMemRequests;
+	    statistics::Scalar rvvLoadCacheLinesTotal;
         } dcachePortStats;
 
       protected:

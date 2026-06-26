@@ -92,7 +92,14 @@ LSQ::DcachePort::DcachePortStats::DcachePortStats(CPU* _cpu)
                                        statistics::units::Count>::get(),
                "Average retry rate per received response"),
       ADD_STAT(numSendRetryResp, statistics::units::Count::get(),
-               "Number of retry responses sent")
+               "Number of retry responses sent"),
+
+      ADD_STAT(rvvLoadCacheLineFootprint,
+		         "Distribution of cache lines touched by each RVV vector load memory request"),
+      ADD_STAT(rvvLoadMemRequests,
+		         "Number of sampled RVV vector load memory requests"),
+      ADD_STAT(rvvLoadCacheLinesTotal,
+		         "Total cache lines touched by sampled RVV vector load memory requests")
 {
     recvRespAvgBW.precision(2);
     recvRespAvgBW = numRecvRespBytes / _cpu->baseStats.numCycles;
@@ -105,6 +112,9 @@ LSQ::DcachePort::DcachePortStats::DcachePortStats(CPU* _cpu)
 
     recvRespAvgRetryRate.precision(2);
     recvRespAvgRetryRate = numSendRetryResp / numRecvResp;
+
+    rvvLoadCacheLineFootprint.init(1, 64, 1).flags(statistics::pdf | statistics::cdf | statistics::dist);
+
 }
 
 LSQ::LSQ(CPU *cpu_ptr, IEW *iew_ptr, const BaseO3CPUParams &params)
@@ -832,6 +842,13 @@ LSQ::pushRequest(const DynInstPtr& inst, bool isLoad, uint8_t *data,
             // instruction as executed.
             inst->setExecuted();
         }
+    }
+
+    if (isLoad && inst && inst->isVector()) {
+	    const uint64_t lines = (addr + size - 1) / cacheLineSize - addr / cacheLineSize + 1; 
+	    dcachePort.dcachePortStats.rvvLoadCacheLineFootprint.sample(lines);
+	    dcachePort.dcachePortStats.rvvLoadMemRequests++;
+	    dcachePort.dcachePortStats.rvvLoadCacheLinesTotal += lines;
     }
 
     if (inst->traceData)
