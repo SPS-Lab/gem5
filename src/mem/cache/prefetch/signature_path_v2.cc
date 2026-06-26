@@ -40,6 +40,7 @@
 
 #include "mem/cache/prefetch/signature_path_v2.hh"
 
+#include <algorithm>
 #include <cassert>
 
 #include "debug/HWPrefetch.hh"
@@ -92,9 +93,16 @@ double
 SignaturePathV2::calculateLookaheadConfidence(
         PatternEntry const &sig, PatternStrideEntry const &lookahead) const
 {
-    if (sig.counter == 0) return 0.0;
-    return (((double) usefulPrefetches) / issuedPrefetches) *
-            (((double) lookahead.counter) / sig.counter);
+    if (sig.counter == 0 || issuedPrefetches == 0) {
+        return 0.0;
+    }
+
+    double confidence =
+        (((double) usefulPrefetches) / issuedPrefetches) *
+        (((double) lookahead.counter) / sig.counter);
+
+    // Keep path confidence decaying so the lookahead loop always terminates.
+    return std::min(confidence, 0.95);
 }
 
 double
