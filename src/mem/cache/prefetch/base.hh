@@ -170,6 +170,13 @@ class Base : public ClockedObject
             return validPC;
         }
 
+	bool hasData() const
+	{
+	     if(data == nullptr)
+		     return false;
+	     return true;
+	}
+
         /**
          * Gets the requestor ID that generated this address
          * @return the requestor ID that generated this address
