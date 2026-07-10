@@ -65,7 +65,7 @@
 #include "params/BaseO3CPU.hh"
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
-
+#include "base/output.hh"
 namespace gem5
 {
 
@@ -152,13 +152,32 @@ Commit::Commit(CPU *_cpu, const BaseO3CPUParams &params)
     interrupt = NoFault;
 
     // Open file trace.txt in write mode.
-    tptr = fopen("trace.txt", "w");
+    tptr = fopen(simout.resolve("trace_AMAT.txt").c_str(), "w"); 
+    //tptr = fopen("trace_AMAT.txt", "w");
     if (tptr == NULL) {
         printf("Could not open trace file.\n");
     }
+
+    // Dump the file unitl the end of simulation
+    statistics::registerDumpCallback([this]() {  dumpPcLatencyFile(tptr); });
+    //dumpPcLatencyFile(tptr);
+}
+
+void
+Commit::dumpPcLatencyFile(FILE *tptr) const
+{
+
+    fprintf(tptr, "PC AMAT count\n");
+
+    for (const auto &[pc, stat] : pcLatencyMap)
+	fprintf(tptr, "0x%llx %.2f %llu\n",(unsigned long long)pc,stat.avg,(unsigned long long)stat.count);
+
+    fclose(tptr);
 }
 
 std::string Commit::name() const { return cpu->name() + ".commit"; }
+
+
 
 void
 Commit::regProbePoints()
@@ -1250,7 +1269,7 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
 
         // Generate trap squash event.
         generateTrapEvent(tid, inst_fault);
-        head_inst->dumpInst(tptr, true);
+        head_inst->dumpInst(true, pcLatencyMap);
         return false;
     }
 
@@ -1289,7 +1308,7 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
         delete head_inst->traceData;
         head_inst->traceData = NULL;
     }
-    head_inst->dumpInst(tptr, false);
+    head_inst->dumpInst(false,pcLatencyMap);
 
     // If this was a store, record it for this cycle.
     if (head_inst->isStore() || head_inst->isAtomic())

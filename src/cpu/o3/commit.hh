@@ -55,11 +55,16 @@
 #include "cpu/timebuf.hh"
 #include "enums/CommitPolicy.hh"
 #include "sim/probe/probe.hh"
-
+#include <unordered_map>
 namespace gem5
 {
 
 struct BaseO3CPUParams;
+struct PcLatencyStat
+{
+	double avg = 0.0;
+	uint64_t count = 0;
+};
 
 namespace o3
 {
@@ -315,6 +320,9 @@ class Commit
     /** Sets the PC of a specific thread. */
     void pcState(const PCStateBase &val, ThreadID tid) { set(pc[tid], val); }
 
+
+    std::unordered_map<Addr, PcLatencyStat> pcLatencyMap;
+    void dumpPcLatencyFile(FILE *t) const;
   private:
     /** Time buffer interface. */
     TimeBuffer<TimeStruct> *timeBuffer;

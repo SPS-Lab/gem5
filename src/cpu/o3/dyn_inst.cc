@@ -456,23 +456,24 @@ DynInst::initiateMemAMO(Addr addr, unsigned size, Request::Flags flags,
 }
 
 void
-DynInst::dumpInst(FILE *tptr, bool isFault)
+DynInst::dumpInst(bool isFault,std::unordered_map<Addr, PcLatencyStat> &pcLatencyMap)
 {
 
     if (!(this->staticInst->isLoad())) {
         return;
     }
-
-    fprintf(tptr, "%s %d %llu ", this->cpu->name().c_str(), this->threadNumber,
-            (unsigned long long)this->seqNum);
+    if (this->loadMemAccessTick < 0 || this->loadMemRequestTick < 0)
+	        return;
+    
     Addr pc = this->pcState().instAddr();
-    fprintf(tptr, "0x%llx ", (unsigned long long)pc);
-    // fprintf(tptr, "%s ", this->staticInst->disassemble(pc).c_str());
     Cycles latency_cycles = this->cpu->ticksToCycles(this->loadMemAccessTick -
                                                      this->loadMemRequestTick);
-    fprintf(tptr, "%llu ", (unsigned long long)latency_cycles);
+    auto &stat = pcLatencyMap[pc];
+    stat.count++;
 
-    fprintf(tptr, "\n");
+    double latency = static_cast<double>(
+			        static_cast<uint64_t>(latency_cycles));
+    stat.avg = stat.avg + (latency - stat.avg) / stat.count;
 }
 
 } // namespace o3

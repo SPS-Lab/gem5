@@ -199,6 +199,7 @@ class DynInst : public ExecContext, public RefCounted
     /** The status of this BaseDynInst.  Several bits can be set. */
     std::bitset<NumStatus> status;
 
+
   protected:
     /** The result of the instruction; assumes an instruction can have many
      *  destination registers.
@@ -1036,8 +1037,8 @@ class DynInst : public ExecContext, public RefCounted
     Tick lastWakeDependents = -1;
 
     // Gernerate the AMAT for each load instruction.
-    void dumpInst(FILE *tptr, bool isFault);
 
+    void dumpInst(bool isFault,std::unordered_map<Addr, PcLatencyStat> &pcLatencyMap);
     /** Reads a misc. register, including any side-effects the read
      * might have as defined by the architecture.
      */
