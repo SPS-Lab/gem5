@@ -167,25 +167,6 @@ class QueuedPrefetcher(BasePrefetcher):
     )
 
 
-
-
-class LMHintPrefetcher(QueuedPrefetcher):
-    type = "LMHintPrefetcher"
-    cxx_class = "gem5::prefetch::LMHintPrefetcher"
-    cxx_header = "mem/cache/prefetch/lmhint.hh"
-
-    hint_table_file = Param.String(
-        "",
-        "Path to an ELF containing .lmhint or a raw LMHint table",
-    )
-    fatal_missing_table = Param.Bool(
-        False, "Fatal if hint_table_file cannot be loaded"
-    )
-    fallback_distance = Param.Addr(
-        0,
-        "Byte stride used before a per-PC stride is learned; 0 means one cache line",
-    )
-
 class StridePrefetcherHashedSetAssociative(TaggedSetAssociative):
     type = "StridePrefetcherHashedSetAssociative"
     cxx_class = "gem5::prefetch::StridePrefetcherHashedSetAssociative"

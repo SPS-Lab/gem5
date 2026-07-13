@@ -30,7 +30,6 @@ Import('*')
 
 SimObject('Prefetcher.py', sim_objects=[
     'BasePrefetcher', 'MultiPrefetcher', 'QueuedPrefetcher',
-    'LMHintPrefetcher',
     'StridePrefetcherHashedSetAssociative', 'StridePrefetcher',
     'SmsPrefetcher', 'TaggedPrefetcher', 'IndirectMemoryPrefetcher',
     'SignaturePathPrefetcher', 'SignaturePathPrefetcherV2',
@@ -47,7 +46,6 @@ Source('multi.cc')
 Source('bop.cc')
 Source('delta_correlating_prediction_tables.cc')
 Source('irregular_stream_buffer.cc')
-Source('lmhint.cc')
 Source('indirect_memory.cc')
 Source('pif.cc')
 Source('queued.cc')
