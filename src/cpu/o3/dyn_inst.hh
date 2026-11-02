@@ -1032,6 +1032,43 @@ class DynInst : public ExecContext, public RefCounted
     int32_t loadMemAccessTick = -1;
     int32_t loadMemRequestTick = -1;
 
+    // Absolute ticks for the RVV element trace (trace_vec_elem.txt.gz).
+    Tick vIssueTick = MaxTick;
+    Tick vExecTick = MaxTick;
+    Tick vWbTick = 0;
+
+    /** One memory packet of this load: when it was sent and answered. */
+    struct MemFrag
+    {
+        Addr vaddr;
+        unsigned size;
+        Tick send;
+        Tick recv;
+        bool fwd;
+    };
+    std::vector<MemFrag> memFrags;
+
+    void
+    recordMemSend(PacketPtr pkt)
+    {
+        if (isLoad() && pkt->req->hasVaddr())
+            memFrags.push_back({pkt->req->getVaddr(), pkt->getSize(),
+                                curTick(), 0, false});
+    }
+
+    void
+    recordMemRecv(PacketPtr pkt)
+    {
+        if (!isLoad() || !pkt->req->hasVaddr())
+            return;
+        for (auto &frag : memFrags) {
+            if (frag.recv == 0 && frag.vaddr == pkt->req->getVaddr()) {
+                frag.recv = curTick();
+                return;
+            }
+        }
+    }
+
     /* Values used by LoadToUse stat */
     Tick firstIssue = -1;
     Tick lastWakeDependents = -1;

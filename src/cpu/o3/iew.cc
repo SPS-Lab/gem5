@@ -1393,6 +1393,7 @@ IEW::writebackInsts()
                 inst->seqNum, inst->pcState());
 
         iewStats.instsToCommit[tid]++;
+        inst->vWbTick = curTick();
         // Notify potential listeners that execution is complete for this
         // instruction.
         ppToCommit->notify(inst);
@@ -1557,6 +1558,7 @@ IEW::updateExeInstStats(const DynInstPtr& inst)
     cpu->executeStats[tid]->numInsts++;
 
     inst->completeTick = curTick() - inst->fetchTick;
+    inst->vExecTick = curTick();
 
     //
     // ALU Operations

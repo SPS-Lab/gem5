@@ -988,6 +988,7 @@ InstructionQueue::scheduleReadyInsts()
 
             issuing_inst->setIssued();
             ++total_issued;
+            issuing_inst->vIssueTick = curTick();
 
 #if TRACING_ON
             issuing_inst->issueTick = curTick() - issuing_inst->fetchTick;

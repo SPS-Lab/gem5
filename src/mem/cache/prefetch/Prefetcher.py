@@ -185,6 +185,14 @@ class LMHintPrefetcher(QueuedPrefetcher):
         0,
         "Byte stride used before a per-PC stride is learned; 0 means one cache line",
     )
+    delegates = VectorParam.BasePrefetcher(
+        [],
+        "Real prefetcher instances used to service each hinted (pfSel, "
+        "degree) selection, indexed (pfSel - 1) * 3 + (degree - 1); "
+        "built by the run script in the fixed order Stride, Tagged, "
+        "IndirectMemory, SignaturePathV2, AMPM, DCPT, SBOOE, Sms, BOP, "
+        "each at degree levels 1/2/3",
+    )
 
 class StridePrefetcherHashedSetAssociative(TaggedSetAssociative):
     type = "StridePrefetcherHashedSetAssociative"

@@ -125,6 +125,11 @@ class BaseO3CPU(BaseCPU):
     )
     renameToROBDelay = Param.Cycles(1, "Rename to reorder buffer delay")
     commitWidth = Param.Unsigned(8, "Commit width")
+    vecElemTrace = Param.Bool(
+        False,
+        "Write trace_vec_elem.txt.gz: per dynamic RVV instruction, issue/"
+        "execute/writeback/commit cycles and per-element load send/receive",
+    )
     squashWidth = OptionalParam.Unsigned(
         "Squash width. If unspecified all instructions are "
         "squashed instantly within one cycle.",

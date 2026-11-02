@@ -41,7 +41,10 @@
 #ifndef __CPU_O3_COMMIT_HH__
 #define __CPU_O3_COMMIT_HH__
 
+#include <map>
 #include <queue>
+#include <string>
+#include <vector>
 
 #include "base/statistics.hh"
 #include "cpu/exetrace.hh"
@@ -60,6 +63,7 @@ namespace gem5
 {
 
 struct BaseO3CPUParams;
+class OutputStream;
 struct PcLatencyStat
 {
 	double avg = 0.0;
@@ -229,6 +233,36 @@ class Commit
 
     /** Trace file. */
     FILE *tptr;
+
+    /** RVV element trace (trace_vec_elem.txt.gz, BaseO3CPU.vecElemTrace):
+     * one line per committed dynamic vector instruction. */
+    struct VecElemTime
+    {
+        Tick send;
+        Tick recv;
+        bool fwd;
+    };
+    struct VecInFlight
+    {
+        bool active = false;
+        InstSeqNum seqNum = 0;
+        Addr pc = 0;
+        std::string name;
+        unsigned uops = 0;
+        Tick issue = MaxTick;
+        Tick exec = MaxTick;
+        Tick wb = 0;
+        int nextElem = 0;
+        std::map<int, VecElemTime> elems;
+    };
+    OutputStream *vecTraceFile = nullptr;
+    VecInFlight vecInFlight[MaxThreads];
+
+    /** (Re)creates the trace file, dropping everything recorded so far. */
+    void openVecElemTrace();
+    /** Folds a committed vector micro-op into its dynamic instruction and
+     * writes the line once its last micro-op commits. */
+    void recordVecElem(ThreadID tid, const DynInstPtr &inst);
 
   private:
     /** Updates the overall status of commit with the nextStatus, and

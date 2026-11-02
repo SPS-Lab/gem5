@@ -190,6 +190,13 @@ protected:
     {
         this->flags[IsVector] = true;
     }
+
+  public:
+    // Element layout of a vector load micro-op's memory access, used by the
+    // O3 RVV element trace: index of the element at the lowest address and
+    // element size in bytes. -1 / 0 when the layout is not known.
+    virtual int memFirstElem() const { return -1; }
+    virtual unsigned memElemBytes() const { return 0; }
 };
 
 class VectorNopMicroInst : public RiscvMicroInst
@@ -382,6 +389,18 @@ class VleMicroInst : public VectorMicroInst
         this->flags[IsLoad] = true;
     }
 
+  public:
+    int
+    memFirstElem() const override
+    {
+        return microIdx * (vlen / width_EEW(machInst.width));
+    }
+    unsigned memElemBytes() const override
+    {
+        return width_EEW(machInst.width) / 8;
+    }
+
+  protected:
     std::string generateDisassembly(
         Addr pc, const loader::SymbolTable *symtab) const override;
 };
@@ -428,6 +447,18 @@ class VlWholeMicroInst : public VectorMicroInst
                           _elen, _vlen)
     {}
 
+  public:
+    int
+    memFirstElem() const override
+    {
+        return microIdx * (vlen / width_EEW(machInst.width));
+    }
+    unsigned memElemBytes() const override
+    {
+        return width_EEW(machInst.width) / 8;
+    }
+
+  protected:
     std::string generateDisassembly(
       Addr pc, const loader::SymbolTable *symtab) const override;
 };
@@ -491,6 +522,20 @@ class VlElementMicroInst : public VectorMemMicroInst
           has_rs2(_has_rs2)
     {}
 
+  public:
+    // Same element index as the execute templates (ei); microVl is the
+    // element count of the register, not the element's position.
+    int
+    memFirstElem() const override
+    {
+        return regIdx * (vlen / width_EEW(machInst.width)) + microIdx;
+    }
+    unsigned memElemBytes() const override
+    {
+        return width_EEW(machInst.width) / 8;
+    }
+
+  protected:
     std::string generateDisassembly(
         Addr pc, const loader::SymbolTable *symtab) const override;
 };
@@ -559,6 +604,16 @@ class VlIndexMicroInst : public VectorMemMicroInst
         , vs2RegIdx(_vs2RegIdx), vs2ElemIdx(_vs2ElemIdx)
     {}
 
+  public:
+    // Indexed loads read SEW-wide data elements.
+    int
+    memFirstElem() const override
+    {
+        return vdRegIdx * (vlen / sew) + vdElemIdx;
+    }
+    unsigned memElemBytes() const override { return sew / 8; }
+
+  protected:
     std::string generateDisassembly(
         Addr pc, const loader::SymbolTable *symtab) const override;
 };

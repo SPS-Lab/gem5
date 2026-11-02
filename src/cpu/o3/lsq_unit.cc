@@ -1498,6 +1498,10 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
                 DPRINTF(LSQUnit, "Forwarding from store idx %i to load to "
                         "addr %#x\n", store_it._idx,
                         request->mainReq()->getVaddr());
+                load_inst->memFrags.assign(1, {
+                    request->mainReq()->getVaddr(),
+                    request->mainReq()->getSize(), curTick(), curTick(),
+                    true});
 
                 PacketPtr data_pkt = new Packet(request->mainReq(),
                         MemCmd::ReadReq);

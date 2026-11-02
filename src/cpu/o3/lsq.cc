@@ -1187,6 +1187,7 @@ LSQ::SingleDataRequest::recvTimingResp(PacketPtr pkt)
     assert(_numOutstandingPackets == 1);
     flags.set(Flag::Complete);
     assert(pkt == _packets.front());
+    _inst->recordMemRecv(pkt);
     _port.completeDataAccess(pkt);
     _hasStaleTranslation = false;
     return true;
@@ -1199,6 +1200,7 @@ LSQ::SplitDataRequest::recvTimingResp(PacketPtr pkt)
     while (pktIdx < _packets.size() && pkt != _packets[pktIdx])
         pktIdx++;
     assert(pktIdx < _packets.size());
+    _inst->recordMemRecv(pkt);
     numReceivedPackets++;
     if (numReceivedPackets == _packets.size()) {
         flags.set(Flag::Complete);
@@ -1319,8 +1321,10 @@ void
 LSQ::SingleDataRequest::sendPacketToCache()
 {
     assert(_numOutstandingPackets == 0);
-    if (lsqUnit()->trySendPacket(isLoad(), _packets.at(0)))
+    if (lsqUnit()->trySendPacket(isLoad(), _packets.at(0))) {
         _numOutstandingPackets = 1;
+        _inst->recordMemSend(_packets.at(0));
+    }
 }
 
 void
@@ -1330,6 +1334,8 @@ LSQ::SplitDataRequest::sendPacketToCache()
     while (numReceivedPackets + _numOutstandingPackets < _packets.size() &&
             lsqUnit()->trySendPacket(isLoad(),
                 _packets.at(numReceivedPackets + _numOutstandingPackets))) {
+        _inst->recordMemSend(
+            _packets.at(numReceivedPackets + _numOutstandingPackets));
         _numOutstandingPackets++;
     }
 }

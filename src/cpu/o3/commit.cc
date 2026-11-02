@@ -66,6 +66,8 @@
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
 #include "base/output.hh"
+#include "arch/riscv/insts/vector.hh"
+#include "sim/core.hh"
 namespace gem5
 {
 
@@ -162,6 +164,20 @@ Commit::Commit(CPU *_cpu, const BaseO3CPUParams &params)
     statistics::registerDumpCallback([this]() {  dumpPcLatencyFile(tptr); });
     // Drop AMAT samples collected before a stats reset (e.g. warm-up).
     statistics::registerResetCallback([this]() { pcLatencyMap.clear(); });
+
+    if (params.vecElemTrace) {
+        openVecElemTrace();
+        statistics::registerResetCallback([this]() { openVecElemTrace(); });
+        // The final dump at exit can run after the exit callback below.
+        statistics::registerDumpCallback([this]() {
+            if (vecTraceFile)
+                vecTraceFile->stream()->flush();
+        });
+        registerExitCallback([this]() {
+            simout.close(vecTraceFile);
+            vecTraceFile = nullptr;
+        });
+    }
     //dumpPcLatencyFile(tptr);
 }
 
@@ -175,6 +191,95 @@ Commit::dumpPcLatencyFile(FILE *tptr) const
 	fprintf(tptr, "0x%llx %.2f %llu\n",(unsigned long long)pc,stat.avg,(unsigned long long)stat.count);
 
     fclose(tptr);
+}
+
+void
+Commit::openVecElemTrace()
+{
+    if (vecTraceFile)
+        simout.close(vecTraceFile);
+    vecTraceFile = simout.create("trace_vec_elem.txt.gz");
+    *vecTraceFile->stream()
+        << "# seq pc mnemonic issue exec wb commit nuops | elem:send:recv ..."
+           " (CPU cycles; send = fwd for store-to-load forwarding)\n";
+    for (auto &v : vecInFlight)
+        v = VecInFlight();
+}
+
+void
+Commit::recordVecElem(ThreadID tid, const DynInstPtr &inst)
+{
+    auto &v = vecInFlight[tid];
+    if (!inst->isMicroop() || inst->isFirstMicroop()) {
+        v = VecInFlight();
+        v.active = true;
+        v.seqNum = inst->seqNum;
+        v.pc = inst->pcState().instAddr();
+        v.name = (inst->macroop ? inst->macroop : inst->staticInst)->getName();
+    }
+    if (!v.active)
+        return;
+
+    v.uops++;
+    v.issue = std::min(v.issue, inst->vIssueTick);
+    v.exec = std::min(v.exec, inst->vExecTick);
+    v.wb = std::max(v.wb, inst->vWbTick);
+
+    if (!inst->memFrags.empty()) {
+        auto uop = dynamic_cast<const RiscvISA::VectorMicroInst *>(
+            inst->staticInst.get());
+        int first = uop ? uop->memFirstElem() : -1;
+        unsigned bytes = uop ? uop->memElemBytes() : 0;
+        Addr base = MaxAddr;
+        for (const auto &frag : inst->memFrags)
+            base = std::min(base, frag.vaddr);
+        if (first < 0 || bytes == 0) {
+            // Unknown layout: count the whole access as one element.
+            first = v.nextElem;
+            bytes = 0;
+        }
+        int last_elem = first;
+        for (const auto &frag : inst->memFrags) {
+            if (frag.recv == 0)
+                continue;
+            int lo = first, hi = first;
+            if (bytes) {
+                lo += (frag.vaddr - base) / bytes;
+                hi += (frag.vaddr + frag.size - 1 - base) / bytes;
+            }
+            // An element split over two packets is ready when both are.
+            for (int e = lo; e <= hi; e++) {
+                auto [it, fresh] = v.elems.try_emplace(
+                    e, VecElemTime{frag.send, frag.recv, frag.fwd});
+                if (!fresh) {
+                    it->second.send = std::min(it->second.send, frag.send);
+                    it->second.recv = std::max(it->second.recv, frag.recv);
+                    it->second.fwd = it->second.fwd && frag.fwd;
+                }
+            }
+            last_elem = std::max(last_elem, hi);
+        }
+        v.nextElem = std::max(v.nextElem, last_elem + 1);
+    }
+
+    if (inst->isMicroop() && !inst->isLastMicroop())
+        return;
+
+    auto cyc = [this](Tick t) -> std::string {
+        if (t == MaxTick || t == 0)
+            return "-";
+        return std::to_string(uint64_t(cpu->ticksToCycles(t)));
+    };
+    std::ostream &os = *vecTraceFile->stream();
+    os << v.seqNum << " 0x" << std::hex << v.pc << std::dec << ' ' << v.name
+       << ' ' << cyc(v.issue) << ' ' << cyc(v.exec) << ' ' << cyc(v.wb)
+       << ' ' << cyc(curTick()) << ' ' << v.uops << " |";
+    for (const auto &[e, t] : v.elems) {
+        os << ' ' << e << ':' << (t.fwd ? std::string("fwd") : cyc(t.send))
+           << ':' << cyc(t.recv);
+    }
+    os << '\n';
+    v.active = false;
 }
 
 std::string Commit::name() const { return cpu->name() + ".commit"; }
@@ -1272,6 +1377,7 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
         // Generate trap squash event.
         generateTrapEvent(tid, inst_fault);
         head_inst->dumpInst(true, pcLatencyMap);
+        vecInFlight[tid].active = false;
         return false;
     }
 
@@ -1311,6 +1417,8 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
         head_inst->traceData = NULL;
     }
     head_inst->dumpInst(false,pcLatencyMap);
+    if (vecTraceFile && head_inst->isVector())
+        recordVecElem(tid, head_inst);
 
     // If this was a store, record it for this cycle.
     if (head_inst->isStore() || head_inst->isAtomic())
