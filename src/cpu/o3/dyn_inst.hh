@@ -1029,8 +1029,9 @@ class DynInst : public ExecContext, public RefCounted
     int32_t storeTick = -1;
 
     // To obtain latency of memory access for load instructions
-    int32_t loadMemAccessTick = -1;
-    int32_t loadMemRequestTick = -1;
+    // Absolute ticks; MaxTick means not set.
+    Tick loadMemAccessTick = MaxTick;
+    Tick loadMemRequestTick = MaxTick;
 
     // Absolute ticks for the RVV element trace (trace_vec_elem.txt.gz).
     Tick vIssueTick = MaxTick;

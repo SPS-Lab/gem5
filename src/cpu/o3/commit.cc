@@ -161,7 +161,14 @@ Commit::Commit(CPU *_cpu, const BaseO3CPUParams &params)
     }
 
     // Dump the file unitl the end of simulation
-    statistics::registerDumpCallback([this]() {  dumpPcLatencyFile(tptr); });
+    // dumpPcLatencyFile closes the file, and there can be more dumps: the ROI
+    // end and the final dump at exit. The first one writes the trace.
+    statistics::registerDumpCallback([this]() {
+        if (tptr) {
+            dumpPcLatencyFile(tptr);
+            tptr = nullptr;
+        }
+    });
     // Drop AMAT samples collected before a stats reset (e.g. warm-up).
     statistics::registerResetCallback([this]() { pcLatencyMap.clear(); });
 

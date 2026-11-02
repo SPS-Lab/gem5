@@ -462,7 +462,8 @@ DynInst::dumpInst(bool isFault,std::unordered_map<Addr, PcLatencyStat> &pcLatenc
     if (!(this->staticInst->isLoad())) {
         return;
     }
-    if (this->loadMemAccessTick < 0 || this->loadMemRequestTick < 0)
+    if (this->loadMemAccessTick == MaxTick ||
+            this->loadMemRequestTick == MaxTick)
 	        return;
     
     Addr pc = this->pcState().instAddr();
