@@ -194,6 +194,53 @@ class LMHintPrefetcher(QueuedPrefetcher):
         "each at degree levels 1/2/3",
     )
 
+class BertiPrefetcher(QueuedPrefetcher):
+    type = "BertiPrefetcher"
+    cxx_class = "gem5::prefetch::Berti"
+    cxx_header = "mem/cache/prefetch/berti.hh"
+
+    use_virtual_addresses = True
+    prefetch_on_pf_hit = True
+    on_read = True
+    on_write = False
+    on_data = True
+    on_inst = False
+
+    addrlist_size = Param.Unsigned(
+        6, "Demand addresses kept per PC; scale it with VLEN for RVV"
+    )
+    deltalist_size = Param.Unsigned(4, "Deltas kept per PC")
+    max_deltafound = Param.Unsigned(
+        4, "Maximum number of timely deltas found per training"
+    )
+    aggressive_pf = Param.Bool(
+        False,
+        "Prefetch with all usable deltas instead of only the best one",
+    )
+    use_byte_addr = Param.Bool(
+        True, "Train on byte addresses instead of block indices"
+    )
+    pf_latency_entries = Param.Unsigned(
+        512, "Prefetched blocks whose fill latency is remembered"
+    )
+
+    history_table_entries = Param.MemorySize(
+        "64", "Number of history table entries"
+    )
+    history_table_assoc = Param.Int(4, "Associativity of the history table")
+    history_table_indexing_policy = Param.TaggedIndexingPolicy(
+        TaggedSetAssociative(
+            entry_size=1,
+            assoc=Parent.history_table_assoc,
+            size=Parent.history_table_entries,
+        ),
+        "Indexing policy of the history table",
+    )
+    history_table_replacement_policy = Param.BaseReplacementPolicy(
+        LRURP(), "Replacement policy of the history table"
+    )
+
+
 class StridePrefetcherHashedSetAssociative(TaggedSetAssociative):
     type = "StridePrefetcherHashedSetAssociative"
     cxx_class = "gem5::prefetch::StridePrefetcherHashedSetAssociative"
