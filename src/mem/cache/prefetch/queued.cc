@@ -233,6 +233,10 @@ Queued::notify(const CacheAccessProbeArg &acc, const PrefetchInfo &pfi)
             DPRINTF(HWPrefetch, "Ignoring page crossing prefetch.\n");
         }
     }
+
+    // The cache only calls getPacket when pfq has something ready, so without
+    // this, page-crossing prefetches wait for a same-page one to come along.
+    processMissingTranslations(queueSize - pfq.size());
 }
 
 PacketPtr

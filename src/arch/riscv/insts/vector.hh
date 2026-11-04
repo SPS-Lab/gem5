@@ -400,6 +400,22 @@ class VleMicroInst : public VectorMicroInst
         return width_EEW(machInst.width) / 8;
     }
 
+    /** vle, vleff or vlm: Vle8_vMicro is also used for vlm. */
+    bool
+    isUnitStrideVle() const
+    {
+        return machInst.lumop == 0x00 || machInst.lumop == 0x10 ||
+               machInst.lumop == 0x0b;
+    }
+
+    /** Elements accessed by the whole instruction. The VL of vlm counts mask
+     * bits, but it reads ceil(VL/8) bytes (see VlmConstructor). */
+    uint32_t
+    memVl() const
+    {
+        return machInst.lumop == 0x0b ? (machInst.vl + 7) / 8 : machInst.vl;
+    }
+
   protected:
     std::string generateDisassembly(
         Addr pc, const loader::SymbolTable *symtab) const override;

@@ -479,6 +479,12 @@ class Request : public Extensible<Request>
 
     bool _isGPUFuncAccess;
 
+    /** The vle instruction this load belongs to: base address of the whole
+     * instruction, VL, and EEW in bytes. An EEW of 0 means not a vle. */
+    Addr _vecBaseVaddr = MaxAddr;
+    uint32_t _vecVl = 0;
+    uint8_t _vecEew = 0;
+
   public:
 
     /**
@@ -530,6 +536,9 @@ class Request : public Extensible<Request>
     {
         atomicOpFunctor.reset(other.atomicOpFunctor ?
                                 other.atomicOpFunctor->clone() : nullptr);
+        _vecBaseVaddr = other._vecBaseVaddr;
+        _vecVl = other._vecVl;
+        _vecEew = other._vecEew;
     }
 
     ~Request() {}
@@ -732,6 +741,20 @@ class Request : public Extensible<Request>
             _byteEnable.end(),
             false) != _byteEnable.end();
     }
+
+    /** Mark this request as part of a vle instruction. */
+    void
+    setVecLoadInfo(Addr base_vaddr, uint32_t vl, uint8_t eew)
+    {
+        _vecBaseVaddr = base_vaddr;
+        _vecVl = vl;
+        _vecEew = eew;
+    }
+
+    bool isVecLoad() const { return _vecEew != 0; }
+    Addr getVecBaseVaddr() const { return _vecBaseVaddr; }
+    uint32_t getVecVl() const { return _vecVl; }
+    uint8_t getVecEew() const { return _vecEew; }
 
     /** Accessor for time. */
     Tick

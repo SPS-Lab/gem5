@@ -241,6 +241,28 @@ class BertiPrefetcher(QueuedPrefetcher):
     )
 
 
+class VectorBertiPrefetcher(BertiPrefetcher):
+    type = "VectorBertiPrefetcher"
+    cxx_class = "gem5::prefetch::VectorBerti"
+    cxx_header = "mem/cache/prefetch/vector_berti.hh"
+
+    vec_size_table_entries = Param.MemorySize(
+        "64", "Number of entries of the per-PC vl*eew table"
+    )
+    vec_size_table_assoc = Param.Int(4, "Associativity of the vl*eew table")
+    vec_size_table_indexing_policy = Param.TaggedIndexingPolicy(
+        TaggedSetAssociative(
+            entry_size=1,
+            assoc=Parent.vec_size_table_assoc,
+            size=Parent.vec_size_table_entries,
+        ),
+        "Indexing policy of the vl*eew table",
+    )
+    vec_size_table_replacement_policy = Param.BaseReplacementPolicy(
+        LRURP(), "Replacement policy of the vl*eew table"
+    )
+
+
 class StridePrefetcherHashedSetAssociative(TaggedSetAssociative):
     type = "StridePrefetcherHashedSetAssociative"
     cxx_class = "gem5::prefetch::StridePrefetcherHashedSetAssociative"

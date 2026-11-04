@@ -56,6 +56,7 @@
 #include "debug/HtmCpu.hh"
 #include "debug/LSQ.hh"
 #include "debug/Writeback.hh"
+#include "arch/riscv/insts/vector.hh"
 #include "params/BaseO3CPU.hh"
 
 namespace gem5
@@ -1107,6 +1108,18 @@ LSQ::LSQRequest::addReq(Addr addr, unsigned size,
         req->setByteEnable(
                 std::vector<bool>(byte_enable.begin(),
                                   byte_enable.end()-inactive_tail_size));
+
+        // Tell the prefetchers which vle this packet belongs to. _addr is the
+        // micro-op's address; micro-ops of a register group share one base.
+        if (isLoad()) {
+            auto vle = dynamic_cast<const RiscvISA::VleMicroInst *>(
+                _inst->staticInst.get());
+            if (vle && vle->isUnitStrideVle()) {
+                req->setVecLoadInfo(
+                    _addr - vle->memFirstElem() * vle->memElemBytes(),
+                    vle->memVl(), vle->memElemBytes());
+            }
+        }
 
         /* If the request is marked as NO_ACCESS, setup a local access */
         if (_flags.isSet(Request::NO_ACCESS)) {
